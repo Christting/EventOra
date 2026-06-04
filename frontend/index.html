@@ -262,9 +262,31 @@
         </div>
       </section>
 
-      <section id="check-in" class="page-section">
-        <p class="eyebrow">QR scanner</p>
-        <h2>Check-in placeholder</h2>
+      <section id="check-in" class="scanner-layout page-section">
+        <article>
+          <p class="eyebrow">QR check-in</p>
+          <h2>Organizer scanner screen</h2>
+          <p>Camera scanning will be connected with Capacitor later. For current HTML/CSS progress, the manual ticket code fallback is shown.</p>
+
+          <div class="permission-card">
+            <span class="badge badge-blue">Camera permission</span>
+            <h3>Request Android camera access</h3>
+            <p>Placeholder UI for the future Capacitor camera permission prompt.</p>
+          </div>
+        </article>
+
+        <aside class="scanner-card">
+          <div class="scanner-window">
+            <span class="scan-line"></span>
+            <p>QR camera preview</p>
+          </div>
+          <label class="input-label">
+            Manual ticket code
+            <input value="EVT-9F4K-2Q8M-X7P1" readonly />
+          </label>
+          <span class="button button-primary full-width">Check in attendee</span>
+          <p class="helper-text">Use this fallback when the device camera is unavailable.</p>
+        </aside>
       </section>
     </main>
 

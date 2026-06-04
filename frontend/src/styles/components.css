@@ -413,3 +413,60 @@ input {
     justify-self: end;
   }
 }
+
+
+.scanner-layout {
+  display: grid;
+  gap: 20px;
+}
+
+.scanner-layout h2 {
+  margin: 0;
+}
+
+.permission-card,
+.scanner-card {
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgba(17, 24, 39, 0.04);
+}
+
+.permission-card {
+  margin-top: 20px;
+}
+
+.permission-card h3 {
+  margin: 12px 0 8px;
+}
+
+.scanner-window {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 240px;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #111827, #1f2937);
+}
+
+.scanner-window p {
+  color: #d1d5db;
+  font-weight: 800;
+}
+
+.scan-line {
+  position: absolute;
+  right: 24px;
+  left: 24px;
+  height: 2px;
+  background: var(--primary);
+  box-shadow: 0 0 18px rgba(37, 99, 235, 0.9);
+}
+
+@media (min-width: 900px) {
+  .scanner-layout {
+    grid-template-columns: minmax(0, 1fr) 360px;
+  }
+}
