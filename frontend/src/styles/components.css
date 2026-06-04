@@ -297,3 +297,38 @@ input {
     grid-template-columns: minmax(0, 1fr) 360px;
   }
 }
+
+
+.mock-modal {
+  display: grid;
+  gap: 20px;
+  align-items: start;
+}
+
+.modal-card {
+  padding: 20px;
+}
+
+.modal-card h2 {
+  margin: 0;
+}
+
+.payment-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+}
+
+.payment-states {
+  display: grid;
+  gap: 16px;
+}
+
+@media (min-width: 900px) {
+  .mock-modal {
+    grid-template-columns: minmax(0, 1fr) 360px;
+  }
+}
