@@ -101,9 +101,46 @@
         </article>
       </section>
 
-      <section id="event-detail" class="page-section">
-        <p class="eyebrow">Registration flow</p>
-        <h2>Event detail placeholder</h2>
+      <section id="event-detail" class="detail-layout page-section">
+        <article class="event-detail-copy">
+          <p class="eyebrow">Registration flow</p>
+          <h2>Build Your First AI App</h2>
+          <p>A practical evening workshop for students who want to build and present a small AI-powered application.</p>
+          <dl class="detail-list">
+            <div><dt>Date</dt><dd>12 June 2026, 7:30 PM</dd></div>
+            <div><dt>Venue</dt><dd>N28A Innovation Lab</dd></div>
+            <div><dt>Organiser</dt><dd>UTM Computing Society</dd></div>
+            <div><dt>Ticket</dt><dd>RM 8.00 - Mock payment required</dd></div>
+          </dl>
+        </article>
+
+        <aside class="registration-panel">
+          <span class="badge badge-blue">Paid ticket</span>
+          <h3>Reserve your seat</h3>
+          <p>12 of 40 seats are still available. Complete the mock payment to generate a QR ticket.</p>
+          <div class="capacity-bar" aria-label="70 percent capacity used">
+            <span style="width: 70%"></span>
+          </div>
+          <a class="button button-primary full-width" href="#payment-modal">Open mock payment</a>
+          <p class="helper-text">Already registered? The UI shows a duplicate registration warning before issuing another ticket.</p>
+        </aside>
+      </section>
+
+      <section id="free-registration" class="state-grid">
+        <article class="state-card success-state">
+          <span class="status-dot"></span>
+          <div>
+            <h3>Free event confirmed</h3>
+            <p>For free events, the attendee is confirmed immediately and a QR ticket is generated.</p>
+          </div>
+        </article>
+        <article class="state-card warning-state">
+          <span class="status-dot"></span>
+          <div>
+            <h3>Duplicate registration blocked</h3>
+            <p>The UI warns the attendee that they already have an active registration for this event.</p>
+          </div>
+        </article>
       </section>
 
       <section id="tickets" class="page-section">
