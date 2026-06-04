@@ -1,0 +1,38 @@
+@media (max-width: 759px) {
+  .toolbar,
+  .section-heading,
+  .modal-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .qr-placeholder {
+    justify-self: start;
+  }
+}
+
+@media (min-width: 640px) {
+  .event-grid,
+  .state-grid,
+  .result-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ticket-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+}
+
+@media (min-width: 900px) {
+  .event-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .detail-layout,
+  .mock-modal,
+  .scanner-layout {
+    grid-template-columns: minmax(0, 1fr) 360px;
+  }
+}
+
