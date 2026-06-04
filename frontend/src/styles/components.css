@@ -470,3 +470,25 @@ input {
     grid-template-columns: minmax(0, 1fr) 360px;
   }
 }
+
+
+.result-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.result-card {
+  padding: 20px;
+}
+
+.result-card strong {
+  display: block;
+  margin-bottom: 8px;
+  color: currentColor;
+}
+
+@media (min-width: 640px) {
+  .result-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
