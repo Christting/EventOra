@@ -183,6 +183,40 @@
         </div>
       </section>
 
+
+      <section id="waitlist-state" class="page-section">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Ticketing edge cases</p>
+            <h2>Waitlist and cancellation states</h2>
+          </div>
+          <span class="badge badge-yellow">0 seats left</span>
+        </div>
+        <div class="state-grid">
+          <article class="state-card warning-state">
+            <span class="status-dot"></span>
+            <div>
+              <h3>Added to waitlist</h3>
+              <p>When an event is full, new attendees enter a waitlist instead of receiving a QR ticket immediately.</p>
+            </div>
+          </article>
+          <article class="state-card success-state">
+            <span class="status-dot"></span>
+            <div>
+              <h3>First waitlisted attendee promoted</h3>
+              <p>When someone cancels, the first waitlisted attendee is moved to confirmed and receives a QR ticket.</p>
+            </div>
+          </article>
+          <article class="state-card neutral-state">
+            <span class="status-dot"></span>
+            <div>
+              <h3>Registration cancelled</h3>
+              <p>The cancelled ticket becomes inactive and the released seat can be offered to the waitlist.</p>
+            </div>
+          </article>
+        </div>
+      </section>
+
       <section id="tickets" class="page-section">
         <p class="eyebrow">Ticket wallet</p>
         <h2>My tickets placeholder</h2>
