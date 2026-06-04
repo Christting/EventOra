@@ -11,18 +11,113 @@ body {
   color: #111827;
 }
 
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 72px;
+  padding: 0 max(20px, calc((100vw - 1120px) / 2));
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.brand,
+.desktop-nav,
+.mobile-nav {
+  display: flex;
+  align-items: center;
+}
+
+.brand {
+  gap: 10px;
+  color: #111827;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.desktop-nav {
+  display: none;
+  gap: 22px;
+}
+
+.desktop-nav a,
+.mobile-nav a {
+  color: #6b7280;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.header-action {
+  display: none;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: #111827;
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
 .app-shell {
   width: min(1120px, calc(100% - 32px));
   margin: 0 auto;
-  padding: 48px 0;
+  padding: 48px 0 96px;
 }
 
-.page-placeholder {
-  min-height: 60vh;
+.hero-section {
+  min-height: 58vh;
   display: grid;
-  place-content: center;
   gap: 12px;
-  text-align: center;
+  align-items: center;
+}
+
+.hero-copy {
+  max-width: 620px;
+  margin-top: 16px;
+}
+
+.hero-card,
+.page-section {
+  border: 1px solid #e5e7eb;
+  border-radius: 24px;
+  background: #ffffff;
+}
+
+.hero-card {
+  padding: 24px;
+}
+
+.hero-card span {
+  color: #6b7280;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.hero-card strong {
+  display: block;
+  margin: 8px 0;
+  font-size: 1.4rem;
+}
+
+.page-section {
+  margin-top: 24px;
+  padding: 28px;
 }
 
 .eyebrow {
@@ -45,3 +140,33 @@ p {
   color: #6b7280;
 }
 
+
+.mobile-nav {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  left: 12px;
+  z-index: 20;
+  justify-content: space-around;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 16px 32px rgba(17, 24, 39, 0.12);
+}
+
+@media (min-width: 760px) {
+  .desktop-nav,
+  .header-action {
+    display: flex;
+  }
+
+  .mobile-nav {
+    display: none;
+  }
+
+  .hero-section {
+    grid-template-columns: minmax(0, 1fr) 320px;
+  }
+}

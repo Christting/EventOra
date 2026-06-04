@@ -7,12 +7,55 @@
     <link rel="stylesheet" href="./src/styles/base.css" />
   </head>
   <body>
-    <main class="app-shell">
-      <section id="home" class="page-placeholder">
-        <p class="eyebrow">EventOra</p>
-        <h1>Frontend UI skeleton</h1>
-        <p>Static HTML and CSS pages for event registration, tickets, and QR check-in.</p>
+    <header class="site-header">
+      <a class="brand" href="#home" aria-label="EventOra home">
+        <span class="brand-mark">E</span>
+        <span>EventOra</span>
+      </a>
+      <nav class="desktop-nav" aria-label="Main navigation">
+        <a href="#home">Events</a>
+        <a href="#event-detail">Register</a>
+        <a href="#tickets">My Tickets</a>
+        <a href="#check-in">QR Check-in</a>
+      </nav>
+      <a class="header-action" href="#event-detail">View Demo</a>
+    </header>
+
+    <main class="app-shell" id="home">
+      <section class="hero-section">
+        <div>
+          <p class="eyebrow">Student society events</p>
+          <h1>Simple event registration and QR check-in UI.</h1>
+          <p class="hero-copy">A clean frontend skeleton for EventOra's ticketing and attendance workflow.</p>
+        </div>
+        <aside class="hero-card" aria-label="Demo progress">
+          <span>UI Progress</span>
+          <strong>Skeleton ready</strong>
+          <p>Registration, ticket wallet, and check-in pages are prepared as static frontend screens.</p>
+        </aside>
+      </section>
+
+      <section id="event-detail" class="page-section">
+        <p class="eyebrow">Registration flow</p>
+        <h2>Event detail placeholder</h2>
+      </section>
+
+      <section id="tickets" class="page-section">
+        <p class="eyebrow">Ticket wallet</p>
+        <h2>My tickets placeholder</h2>
+      </section>
+
+      <section id="check-in" class="page-section">
+        <p class="eyebrow">QR scanner</p>
+        <h2>Check-in placeholder</h2>
       </section>
     </main>
+
+    <nav class="mobile-nav" aria-label="Mobile navigation">
+      <a href="#home">Events</a>
+      <a href="#event-detail">Register</a>
+      <a href="#tickets">Tickets</a>
+      <a href="#check-in">Scan</a>
+    </nav>
   </body>
 </html>
