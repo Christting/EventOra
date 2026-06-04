@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>EventOra UI Skeleton</title>
+    <title>EventOra - Student Society Event Platform</title>
     <link rel="stylesheet" href="./src/styles/tokens.css" />
     <link rel="stylesheet" href="./src/styles/components.css" />
     <link rel="stylesheet" href="./src/styles/responsive.css" />
@@ -28,13 +28,13 @@
       <section class="hero-section">
         <div>
           <p class="eyebrow">Student society events</p>
-          <h1>Simple event registration and QR check-in UI.</h1>
-          <p class="hero-copy">A clean frontend skeleton for EventOra's ticketing and attendance workflow.</p>
+          <h1>Campus events, tickets, and check-ins in one place.</h1>
+          <p class="hero-copy">Discover society events happening across UTM, reserve your seat, and keep every QR ticket ready on mobile.</p>
         </div>
-        <aside class="hero-card" aria-label="Demo progress">
-          <span>UI Progress</span>
-          <strong>Skeleton ready</strong>
-          <p>Registration, ticket wallet, and check-in pages are prepared as static frontend screens.</p>
+        <aside class="hero-card" aria-label="EventOra product highlights">
+          <span>Live campus flow</span>
+          <strong>Register. Pay. Scan.</strong>
+          <p>EventOra brings discovery, ticketing, and attendance check-in into one streamlined campus experience.</p>
         </aside>
       </section>
 
@@ -152,7 +152,7 @@
             <span class="badge badge-yellow">Pending</span>
           </div>
           <h2>Complete ticket payment</h2>
-          <p>No real transaction is made. This screen is only for frontend progress and demo flow.</p>
+          <p>Review the ticket amount and complete the campus payment confirmation before your QR ticket is issued.</p>
           <label class="input-label">
             Demo card number
             <input value="4242 4242 4242 4242" readonly />
@@ -235,7 +235,7 @@
               <p>12 Jun 2026 - N28A Innovation Lab</p>
               <code>EVT-9F4K-2Q8M-X7P1</code>
             </div>
-            <div class="qr-placeholder" aria-label="QR code placeholder">
+            <div class="qr-pattern" aria-label="QR ticket code">
               <span></span><span></span><span></span><span></span>
               <span></span><span></span><span></span><span></span>
               <span></span><span></span><span></span><span></span>
@@ -253,7 +253,7 @@
               <p>18 May 2026 - Seminar Room 2</p>
               <code>EVT-6B1P-8Q2N-R4Z9</code>
             </div>
-            <div class="qr-placeholder used" aria-label="Used QR placeholder">
+            <div class="qr-pattern used" aria-label="Used QR ticket code">
               <span></span><span></span><span></span><span></span>
               <span></span><span></span><span></span><span></span>
               <span></span><span></span><span></span><span></span>
@@ -267,19 +267,19 @@
         <article>
           <p class="eyebrow">QR check-in</p>
           <h2>Organizer scanner screen</h2>
-          <p>Camera scanning will be connected with Capacitor later. For current HTML/CSS progress, the manual ticket code fallback is shown.</p>
+          <p>Scan attendee tickets and manage check-ins on mobile, with a manual fallback for low-light or camera issues.</p>
 
           <div class="permission-card">
             <span class="badge badge-blue">Camera permission</span>
             <h3>Request Android camera access</h3>
-            <p>Placeholder UI for the future Capacitor camera permission prompt.</p>
+            <p>Organisers can enable the camera scanner before validating attendee QR tickets.</p>
           </div>
         </article>
 
         <aside class="scanner-card">
           <div class="scanner-window">
             <span class="scan-line"></span>
-            <p>QR camera preview</p>
+            <p>Camera scanner</p>
           </div>
           <label class="input-label">
             Manual ticket code
@@ -297,7 +297,7 @@
             <p class="eyebrow">Check-in results</p>
             <h2>QR ticket result states</h2>
           </div>
-          <span class="badge badge-gray">Static UI</span>
+          <span class="badge badge-gray">Scan outcomes</span>
         </div>
         <div class="result-grid">
           <article class="result-card success-state">

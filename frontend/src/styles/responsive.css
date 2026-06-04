@@ -6,7 +6,7 @@
     flex-direction: column;
   }
 
-  .qr-placeholder {
+  .qr-pattern {
     justify-self: start;
   }
 }

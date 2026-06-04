@@ -375,7 +375,7 @@ input {
   opacity: 0.78;
 }
 
-.qr-placeholder {
+.qr-pattern {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 5px;
@@ -388,18 +388,18 @@ input {
   background: #ffffff;
 }
 
-.qr-placeholder span {
+.qr-pattern span {
   border-radius: 3px;
   background: var(--text);
 }
 
-.qr-placeholder span:nth-child(2n),
-.qr-placeholder span:nth-child(7),
-.qr-placeholder span:nth-child(13) {
+.qr-pattern span:nth-child(2n),
+.qr-pattern span:nth-child(7),
+.qr-pattern span:nth-child(13) {
   background: #d1d5db;
 }
 
-.qr-placeholder.used span {
+.qr-pattern.used span {
   background: #9ca3af;
 }
 
@@ -409,7 +409,7 @@ input {
     align-items: center;
   }
 
-  .qr-placeholder {
+  .qr-pattern {
     justify-self: end;
   }
 }
