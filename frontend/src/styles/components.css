@@ -680,6 +680,7 @@
 
 .mobile-content {
   padding: 16px;
+  background: #ffffff;
 }
 
 .scanner-window {
@@ -692,8 +693,19 @@
   background: linear-gradient(135deg, #111827, #1e1e2e);
 }
 
-.scanner-window p {
+.camera-label {
+  display: grid;
+  gap: 6px;
+  text-align: center;
+}
+
+.camera-label strong {
+  color: #ffffff;
+}
+
+.camera-label span {
   color: #d1d5db;
+  font-size: 0.8rem;
   font-weight: 600;
 }
 
@@ -718,6 +730,65 @@
 .scan-corner.tr { top: 22px; right: 22px; border-width: 3px 3px 0 0; }
 .scan-corner.bl { bottom: 22px; left: 22px; border-width: 0 0 3px 3px; }
 .scan-corner.br { right: 22px; bottom: 22px; border-width: 0 3px 3px 0; }
+
+.scan-control-card {
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.scan-control-card h3 {
+  margin: 10px 0 6px;
+}
+
+.scan-control-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.scan-control-row:first-of-type {
+  margin-top: 12px;
+}
+
+.scan-control-row strong {
+  color: var(--text);
+  text-align: right;
+}
+
+.scanner-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.scanner-stats div {
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+}
+
+.scanner-stats span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.scanner-stats strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--text);
+  font-size: 1.15rem;
+}
 
 .result-card {
   padding: 20px;

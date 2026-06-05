@@ -368,29 +368,63 @@
       </section>
 
       <section id="check-in" class="scanner-layout page-section">
-        <article>
+        <article class="scanner-copy">
           <p class="eyebrow">QR check-in</p>
-          <h2>Organizer scanner screen</h2>
+          <h2>Mobile check-in for organisers</h2>
           <p>Scan attendee tickets and manage check-ins on mobile, with a manual fallback for low-light or camera issues.</p>
 
           <div class="permission-card">
             <span class="badge badge-blue">Camera permission</span>
             <h3>Request Android camera access</h3>
-            <p>Organisers can enable the camera scanner before validating attendee QR tickets.</p>
+            <p>Organisers enable camera access before validating attendee QR tickets for their own society events.</p>
+          </div>
+          <div class="scan-control-card">
+            <span class="badge badge-gray">Organiser mode</span>
+            <h3>UTM Computing Society</h3>
+            <p>Scanner is scoped to approved events created by this society.</p>
+            <div class="scan-control-row">
+              <span>Event</span>
+              <strong>Build Your First AI App</strong>
+            </div>
+            <div class="scan-control-row">
+              <span>Fallback</span>
+              <strong>Manual ticket code</strong>
+            </div>
           </div>
         </article>
 
-        <aside class="scanner-card">
-          <div class="scanner-window">
-            <span class="scan-line"></span>
-            <p>Camera scanner</p>
+        <aside class="mobile-frame" aria-label="Mobile QR check-in screen">
+          <div class="mobile-status">
+            <span>9:41</span>
+            <span>5G 100%</span>
           </div>
-          <label class="input-label">
-            Manual ticket code
-            <input value="EVT-9F4K-2Q8M-X7P1" readonly />
-          </label>
-          <span class="button button-primary full-width">Check in attendee</span>
-          <p class="helper-text">Use this fallback when the device camera is unavailable.</p>
+          <div class="mobile-appbar">
+            <strong>EventOra Scan</strong>
+            <p>Build Your First AI App</p>
+          </div>
+          <div class="mobile-content">
+            <div class="scanner-window">
+              <span class="scan-corner tl"></span>
+              <span class="scan-corner tr"></span>
+              <span class="scan-corner bl"></span>
+              <span class="scan-corner br"></span>
+              <span class="scan-line"></span>
+              <div class="camera-label">
+                <strong>Camera scanner</strong>
+                <span>Ready to scan ticket QR</span>
+              </div>
+            </div>
+            <div class="scanner-stats">
+              <div><span>Checked in</span><strong>18</strong></div>
+              <div><span>Registered</span><strong>28</strong></div>
+            </div>
+            <label class="input-label">
+              Manual ticket code
+              <input value="EVT-9F4K-2Q8M-X7P1" readonly />
+            </label>
+            <span class="button button-primary full-width">Check in attendee</span>
+            <p class="helper-text">Use manual fallback when the camera is unavailable.</p>
+          </div>
         </aside>
       </section>
 
