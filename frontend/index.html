@@ -250,32 +250,54 @@
       <section id="waitlist-state" class="page-section">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Ticketing edge cases</p>
-            <h2>Waitlist and cancellation states</h2>
+            <p class="eyebrow">Booking lifecycle</p>
+            <h2>Waitlist and cancellation experience</h2>
           </div>
           <span class="badge badge-yellow">0 seats left</span>
         </div>
-        <div class="state-grid">
+        <div class="waitlist-layout">
+          <article class="queue-card">
+            <div class="queue-header">
+              <div>
+                <span class="badge badge-yellow">Waitlisted</span>
+                <h3>Interfaculty Futsal Cup</h3>
+              </div>
+              <strong>#3</strong>
+            </div>
+            <p>You are third in line. EventOra will confirm your booking automatically when a seat opens.</p>
+            <div class="queue-meter" aria-label="40 of 40 seats filled">
+              <span style="width: 100%"></span>
+            </div>
+            <div class="queue-meta">
+              <span>40 / 40 seats filled</span>
+              <strong>2 people ahead</strong>
+            </div>
+          </article>
           <article class="state-card warning-state">
             <span class="status-dot"></span>
             <div>
               <h3>Added to waitlist</h3>
-              <p>When an event is full, new attendees enter a waitlist instead of receiving a QR ticket immediately.</p>
+              <p>The attendee receives a waitlist position, but no QR ticket is generated until a seat becomes available.</p>
             </div>
           </article>
           <article class="state-card success-state">
             <span class="status-dot"></span>
             <div>
-              <h3>First waitlisted attendee promoted</h3>
-              <p>When someone cancels, the first waitlisted attendee is moved to confirmed and receives a QR ticket.</p>
+              <h3>Waitlist promoted</h3>
+              <p>A cancellation releases one seat, the first waitlisted attendee becomes confirmed, and a QR ticket is issued.</p>
             </div>
           </article>
           <article class="state-card neutral-state">
             <span class="status-dot"></span>
             <div>
               <h3>Registration cancelled</h3>
-              <p>The cancelled ticket becomes inactive and the released seat can be offered to the waitlist.</p>
+              <p>The attendee can cancel from My Tickets. The old ticket becomes inactive and the seat returns to the queue.</p>
             </div>
+          </article>
+          <article class="notification-card">
+            <span class="badge badge-green">Notification sent</span>
+            <h3>Seat confirmed for Aina Rahman</h3>
+            <p>You have been promoted from the waitlist. Your QR ticket is now active in My Tickets.</p>
           </article>
         </div>
       </section>

@@ -360,6 +360,77 @@
   padding: 16px;
 }
 
+.waitlist-layout {
+  display: grid;
+  gap: 16px;
+}
+
+.queue-card,
+.notification-card {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.queue-header,
+.queue-meta {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.queue-header h3 {
+  margin: 10px 0 0;
+}
+
+.queue-header strong {
+  color: var(--primary);
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.queue-meter {
+  height: 9px;
+  margin: 18px 0 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eef2f7;
+}
+
+.queue-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--warning);
+}
+
+.queue-meta {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.queue-meta strong {
+  color: var(--text);
+}
+
+.notification-card {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.notification-card h3 {
+  margin: 10px 0 6px;
+}
+
+@media (min-width: 640px) {
+  .waitlist-layout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .status-dot {
   flex: 0 0 auto;
   width: 10px;
