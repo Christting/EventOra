@@ -221,8 +221,16 @@
 .event-banner {
   min-height: 210px;
   padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
   border-radius: var(--radius-md);
   background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: #ffffff;
+}
+
+.event-banner h2 {
+  margin: 12px 0 8px;
   color: #ffffff;
 }
 
@@ -280,9 +288,36 @@
   color: var(--primary);
 }
 
+.registration-header,
+.capacity-labels {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.registration-header strong {
+  color: var(--primary);
+  font-size: 1.25rem;
+}
+
+.registration-header h3 {
+  margin: 10px 0 0;
+}
+
+.capacity-labels {
+  margin-top: 18px;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.capacity-labels strong {
+  color: var(--text);
+}
+
 .capacity-bar {
   height: 9px;
-  margin: 18px 0;
+  margin: 8px 0 18px;
   overflow: hidden;
   border-radius: 999px;
   background: #eef2f7;
@@ -297,6 +332,25 @@
 
 .helper-text {
   margin-top: 12px;
+  font-size: 0.82rem;
+}
+
+.registration-alert {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-sm);
+  background: #eff6ff;
+}
+
+.registration-alert strong {
+  display: block;
+  color: #1d4ed8;
+  font-size: 0.86rem;
+}
+
+.registration-alert p {
+  margin-top: 4px;
   font-size: 0.82rem;
 }
 
