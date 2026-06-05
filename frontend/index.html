@@ -184,37 +184,64 @@
       <section id="payment-modal" class="mock-modal page-section" aria-label="Mock payment modal">
         <div class="modal-card">
           <div class="modal-header">
-            <p class="eyebrow">Mock payment</p>
+            <div>
+              <p class="eyebrow">Secure checkout</p>
+              <h2>Complete ticket payment</h2>
+            </div>
             <span class="badge badge-yellow">Pending</span>
           </div>
-          <h2>Complete ticket payment</h2>
-          <p>Review the ticket amount and complete the campus payment confirmation before your QR ticket is issued.</p>
+          <p>Confirm the event pass, review the amount, and issue a QR ticket once the mock payment is approved.</p>
+          <div class="payment-method">
+            <span>Payment method</span>
+            <strong>Campus Card ending 4242</strong>
+          </div>
           <label class="input-label">
-            Demo card number
+            Mock card number
             <input value="4242 4242 4242 4242" readonly />
           </label>
-          <div class="payment-summary">
-            <span>Build Your First AI App</span>
-            <strong>RM 8.00</strong>
+          <div class="payment-summary checkout-receipt">
+            <div>
+              <span>Event pass</span>
+              <strong>Build Your First AI App</strong>
+            </div>
+            <div>
+              <span>Ticket price</span>
+              <strong>RM 8.00</strong>
+            </div>
+            <div>
+              <span>Processing fee</span>
+              <strong>RM 0.00</strong>
+            </div>
+            <div class="receipt-total">
+              <span>Total due</span>
+              <strong>RM 8.00</strong>
+            </div>
           </div>
           <div class="modal-actions">
-            <span class="button button-primary">Payment success</span>
-            <span class="button button-ghost">Payment failed</span>
+            <span class="button button-primary">Approve payment</span>
+            <span class="button button-ghost">Decline</span>
           </div>
         </div>
         <div class="payment-states">
+          <article class="state-card warning-state">
+            <span class="status-dot"></span>
+            <div>
+              <h3>Payment pending</h3>
+              <p>The seat is held while payment is being confirmed, but no QR ticket is issued yet.</p>
+            </div>
+          </article>
           <article class="state-card success-state">
             <span class="status-dot"></span>
             <div>
-              <h3>Payment successful</h3>
-              <p>Registration becomes confirmed and a unique QR ticket appears in My Tickets.</p>
+              <h3>Payment approved</h3>
+              <p>The registration becomes confirmed and the attendee receives an active QR ticket in My Tickets.</p>
             </div>
           </article>
           <article class="state-card danger-state">
             <span class="status-dot"></span>
             <div>
-              <h3>Payment failed</h3>
-              <p>No ticket is generated until the attendee retries the mock payment successfully.</p>
+              <h3>Payment declined</h3>
+              <p>The booking stays unpaid, and EventOra prevents ticket generation until the attendee retries successfully.</p>
             </div>
           </article>
         </div>

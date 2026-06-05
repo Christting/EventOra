@@ -392,11 +392,59 @@
   font-weight: 600;
 }
 
+.payment-method {
+  margin-top: 18px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.payment-method span,
+.checkout-receipt span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.payment-method strong,
+.checkout-receipt strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--text);
+}
+
 .payment-summary,
 .ticket-row {
   padding: 12px;
   border-radius: var(--radius-sm);
   background: var(--surface-soft);
+}
+
+.checkout-receipt {
+  display: grid;
+  gap: 12px;
+}
+
+.checkout-receipt div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.checkout-receipt strong {
+  text-align: right;
+}
+
+.receipt-total {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.receipt-total strong {
+  color: var(--primary);
+  font-size: 1.12rem;
 }
 
 .subsection-title {
