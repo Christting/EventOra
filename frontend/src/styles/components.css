@@ -790,12 +790,81 @@
   font-size: 1.15rem;
 }
 
+.scan-result-summary {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.scan-receipt,
+.attendance-panel {
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.success-receipt {
+  border-color: #bbf7d0;
+  background: linear-gradient(135deg, #f0fdf4, #ffffff);
+}
+
+.scan-receipt h3 {
+  margin: 12px 0 6px;
+  font-size: 1.45rem;
+}
+
+.receipt-meta {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.receipt-meta span {
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.receipt-meta strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--text);
+}
+
+.attendance-rate {
+  margin: 16px 0 8px;
+  color: var(--primary);
+  font-size: 3rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
 .result-card {
   padding: 20px;
+}
+
+.result-label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .result-card strong {
   display: block;
   margin-bottom: 8px;
   color: currentColor;
+}
+
+@media (min-width: 760px) {
+  .scan-result-summary {
+    grid-template-columns: minmax(0, 1fr) 280px;
+    align-items: stretch;
+  }
 }
