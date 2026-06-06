@@ -1,6 +1,103 @@
+@media (max-width: 479px) {
+  .site-header {
+    gap: 12px;
+    padding: 0 14px;
+  }
+
+  .brand-mark {
+    width: 32px;
+    height: 32px;
+  }
+
+  .app-shell {
+    width: calc(100% - 24px);
+    padding: 20px 0 92px;
+  }
+
+  .hero-section {
+    min-height: auto;
+    padding: 20px;
+    border-radius: var(--radius-md);
+  }
+
+  .hero-copy {
+    margin-top: 12px;
+  }
+
+  .search-panel,
+  .checkout-receipt div,
+  .scan-control-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search-panel .button,
+  .modal-actions .button {
+    width: 100%;
+  }
+
+  .page-section {
+    margin-top: 18px;
+    padding: 18px;
+    border-radius: var(--radius-md);
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .stat-card,
+  .event-card-body,
+  .registration-panel,
+  .modal-card,
+  .scanner-card,
+  .permission-card,
+  .result-card,
+  .ticket-card {
+    padding: 16px;
+  }
+
+  .event-cover {
+    min-height: 112px;
+  }
+
+  .event-banner {
+    min-height: 180px;
+    padding: 18px;
+  }
+
+  .ticket-info code {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .mobile-frame {
+    max-width: 100%;
+    border-radius: 24px;
+  }
+
+  .scanner-window {
+    min-height: 210px;
+  }
+
+  .mobile-nav {
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+    gap: 4px;
+    padding: 10px;
+  }
+
+  .mobile-nav a {
+    font-size: 0.78rem;
+  }
+}
+
 @media (max-width: 759px) {
   .toolbar,
   .section-heading,
+  .modal-header,
   .modal-actions {
     align-items: flex-start;
     flex-direction: column;
@@ -12,15 +109,18 @@
 }
 
 @media (min-width: 640px) {
+  .stats-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .event-grid,
   .state-grid,
   .result-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .ticket-card {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
+  .receipt-meta {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -32,7 +132,12 @@
   .detail-layout,
   .mock-modal,
   .scanner-layout {
-    grid-template-columns: minmax(0, 1fr) 360px;
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 380px);
   }
 }
 
+@media (min-width: 1180px) {
+  .page-section {
+    padding: 28px;
+  }
+}
