@@ -6,6 +6,7 @@ use Slim\Factory\AppFactory;
 use Dotenv\Dotenv;
 use App\Controllers\AuthController;
 use App\Controllers\AdminController;
+use App\Controllers\DashboardController;
 use App\Middleware\JwtMiddleware;
 use App\Middleware\RoleMiddleware;
 
@@ -85,6 +86,16 @@ $app->group('/api/admin/events', function ($group) {
     $group->post('/{id}/reject', [$controller, 'rejectEvent']);
 })
     ->add(new RoleMiddleware(['faculty_admin']))
+    ->add(new JwtMiddleware());
+
+// ============================================
+// Organiser Dashboard route
+// ============================================
+// Same middleware stacking pattern as the admin group above - just with
+// a different allowed role. JwtMiddleware (outer, runs first) decodes
+// the token; RoleMiddleware (inner, runs second) checks for 'organiser'.
+$app->get('/api/dashboard/organiser', [new DashboardController(), 'organiserDashboard'])
+    ->add(new RoleMiddleware(['organiser']))
     ->add(new JwtMiddleware());
 
 $app->run();
