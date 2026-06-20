@@ -72,8 +72,39 @@ class DashboardController
             ], null, 200);
         }
 
-        // Temp return to satisfy build before adding registration/capacity logic
-        return $this->successResponse($response, $this->emptyDashboard(), null, 200);
+        $registrationStats = $this->getRegistrationStats($db, $eventIds);
+        $attendanceStats = $this->getAttendanceStats($db, $eventIds);
+        $attendanceRatePercent = $this->getAttendanceRatePercent(
+            $attendanceStats['checked_in'],
+            $registrationStats['confirmed']
+        );
+        $capacityStats = $this->getCapacityStats($db, $eventIds, $registrationStats['confirmed']);
+
+        $data = [
+            'event_totals' => $eventTotals,
+            'total_events' => array_sum($eventTotals),
+            'total_registrations' => $registrationStats['total'],
+            'confirmed_registrations' => $registrationStats['confirmed'],
+            'attendance' => [
+                'checked_in' => $attendanceStats['checked_in'],
+                'rate_percent' => $attendanceRatePercent,
+            ],
+            'capacity' => [
+                'total_capacity' => $capacityStats['total_capacity'],
+                'confirmed_count' => $registrationStats['confirmed'],
+                'use_percent' => $capacityStats['use_percent'],
+            ],
+            // TODO: replace with a real query once the `feedback` table
+            // exists. Per PR1 5.2, feedback is a Should-Have feature and
+            // its schema has not been created yet (it's one of the 4
+            // tables - feedback/certificates/notifications/favorites -
+            // deliberately deferred until after the 9 Must-Have tables).
+            // Once it exists, this becomes something like:
+            //   SELECT AVG(rating) FROM feedback WHERE event_id IN (...)
+            'average_rating' => null,
+        ];
+
+        return $this->successResponse($response, $data, null, 200);
     }
 
     // Finds every society this organiser belongs to. Per the data
@@ -141,6 +172,88 @@ class DashboardController
         }
 
         return $totals;
+    }
+
+    // Counts total and confirmed registrations across the given events.
+    // 'total' deliberately EXCLUDES cancelled registrations - a
+    // cancelled registration isn't really "a registration" from the
+    // dashboard's point of view, it's a withdrawn one, and counting it
+    // would inflate numbers the organiser is using to gauge real interest.
+    private function getRegistrationStats(PDO $db, array $eventIds): array
+    {
+        $placeholders = $this->buildPlaceholders($eventIds);
+
+        $stmt = $db->prepare(
+            "SELECT status, COUNT(*) AS total
+             FROM registrations
+             WHERE event_id IN ({$placeholders})
+             GROUP BY status"
+        );
+        $stmt->execute($eventIds);
+        $rows = $stmt->fetchAll();
+
+        $total = 0;
+        $confirmed = 0;
+
+        foreach ($rows as $row) {
+            if ($row['status'] === 'cancelled') {
+                continue;
+            }
+
+            $total += (int) $row['total'];
+
+            if ($row['status'] === 'confirmed') {
+                $confirmed = (int) $row['total'];
+            }
+        }
+
+        return ['total' => $total, 'confirmed' => $confirmed];
+    }
+
+    // Attendance rate = (tickets actually checked in) / (confirmed
+    // registrations). We join through tickets -> check_ins rather than
+    // counting registrations directly, since check_ins is what PR1
+    // defines as the source of truth for "did this person actually show
+    // up" (registrations.status = 'confirmed' only means they have a
+    // valid ticket, not that they attended).
+    private function getAttendanceStats(PDO $db, array $eventIds): array
+    {
+        $placeholders = $this->buildPlaceholders($eventIds);
+
+        $stmt = $db->prepare(
+            "SELECT COUNT(*) AS checked_in
+             FROM check_ins ci
+             JOIN tickets t ON t.id = ci.ticket_id
+             JOIN registrations r ON r.id = t.registration_id
+             WHERE r.event_id IN ({$placeholders})"
+        );
+        $stmt->execute($eventIds);
+        $checkedIn = (int) $stmt->fetch()['checked_in'];
+
+        return ['checked_in' => $checkedIn];
+    }
+
+    // Combines the checked-in count from getAttendanceStats() with the
+    // confirmed registration count to produce a percentage. Split into
+    // its own step (rather than computed inline) because the percentage
+    // math - and the "what if the denominator is zero" guard - applies
+    // to both attendance rate AND capacity use below, so it's reused twice.
+    private function getCapacityStats(PDO $db, array $eventIds, int $confirmedCount): array
+    {
+        $placeholders = $this->buildPlaceholders($eventIds);
+
+        $stmt = $db->prepare(
+            "SELECT SUM(capacity) AS total_capacity
+             FROM events
+             WHERE id IN ({$placeholders})"
+        );
+        $stmt->execute($eventIds);
+        $totalCapacity = (int) ($stmt->fetch()['total_capacity'] ?? 0);
+
+        return [
+            'total_capacity' => $totalCapacity,
+            'use_percent' => $this->safePercentage($confirmedCount, $totalCapacity),
+        ];
     }
 
     // Shared percentage helper. Returns null (not 0) when the
