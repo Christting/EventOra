@@ -6,6 +6,7 @@ use Slim\Factory\AppFactory;
 use Dotenv\Dotenv;
 use App\Controllers\AuthController;
 use App\Middleware\JwtMiddleware;
+use App\Middleware\RoleMiddleware;
 
 require __DIR__ . '/../vendor/autoload.php';
 
