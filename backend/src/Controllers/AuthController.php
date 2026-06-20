@@ -151,6 +151,94 @@ class AuthController
         ], 'Token refreshed', 200);
     }
 
+    // POST /api/auth/logout
+    // Authenticated endpoint. JWTs are stateless - the server doesn't keep
+    // a session to destroy - so "logout" here just confirms the request
+    // was authenticated. The actual logout action is the client discarding
+    // its stored token (matches the PR1 API contract description verbatim:
+    // "client discards the stored JWT").
+    public function logout(Request $request, Response $response): Response
+    {
+        return $this->successResponse($response, null, 'Logged out successfully', 200);
+    }
+
+    // GET /api/me
+    // Authenticated endpoint - returns the current user's profile, role,
+    // and society membership (per PR1 API contract A.1).
+    public function me(Request $request, Response $response): Response
+    {
+        $authUser = $request->getAttribute('user');
+        $userId = (int) $authUser['sub'];
+
+        $db = Database::getConnection();
+
+        $stmt = $db->prepare(
+            'SELECT id, name, email, role, matric_no, phone, avatar_url, created_at
+             FROM users WHERE id = :id'
+        );
+        $stmt->execute(['id' => $userId]);
+        $profile = $stmt->fetch();
+
+        if (!$profile) {
+            return $this->errorResponse($response, 'USER_NOT_FOUND', 'User no longer exists', [], 404);
+        }
+
+        // Society membership - relevant for organisers, empty array for
+        // attendees/faculty_admin who aren't in society_members at all
+        $memberStmt = $db->prepare(
+            'SELECT sm.society_id, s.name AS society_name, sm.role AS society_role
+             FROM society_members sm
+             JOIN societies s ON s.id = sm.society_id
+             WHERE sm.user_id = :user_id'
+        );
+        $memberStmt->execute(['user_id' => $userId]);
+        $memberships = $memberStmt->fetchAll();
+
+        $profile['society_memberships'] = $memberships;
+
+        return $this->successResponse($response, $profile, null, 200);
+    }
+
+    // PUT /api/me
+    // Authenticated endpoint - updates the current user's permitted
+    // profile fields. Deliberately does NOT allow updating email or role
+    // here - role changes go through the faculty_admin society/organiser
+    // endpoints, and email changes would need re-verification (out of
+    // scope for this project).
+    public function updateMe(Request $request, Response $response): Response
+    {
+        $authUser = $request->getAttribute('user');
+        $userId = (int) $authUser['sub'];
+
+        $data = $request->getParsedBody();
+
+        // Build the update dynamically based on which fields were actually
+        // sent, so a partial PUT (e.g. just { "phone": "..." }) doesn't
+        // overwrite other fields with null
+        $allowedFields = ['name', 'matric_no', 'phone', 'avatar_url'];
+        $updates = [];
+        $params = ['id' => $userId];
+
+        foreach ($allowedFields as $field) {
+            if (array_key_exists($field, $data)) {
+                $updates[] = "{$field} = :{$field}";
+                $params[$field] = trim((string) $data[$field]) ?: null;
+            }
+        }
+
+        if (empty($updates)) {
+            return $this->errorResponse($response, 'VALIDATION_ERROR', 'No valid fields provided to update', [], 422);
+        }
+
+        $db = Database::getConnection();
+        $setClause = implode(', ', $updates);
+
+        $stmt = $db->prepare("UPDATE users SET {$setClause} WHERE id = :id");
+        $stmt->execute($params);
+
+        return $this->successResponse($response, null, 'Profile updated successfully', 200);
+    }
+
     // Shared helper for the project's success response convention
     // (per PR1 API contract A.5: { "success": true, "data": {...}, "message": "..." })
     private function successResponse(Response $response, mixed $data, ?string $message, int $status): Response
