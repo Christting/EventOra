@@ -92,6 +92,65 @@ class AuthController
         ], 'Account created successfully', 201);
     }
 
+    // POST /api/auth/login
+    // Public endpoint - verifies credentials and returns a signed JWT.
+    public function login(Request $request, Response $response): Response
+    {
+        $data = $request->getParsedBody();
+
+        $email = trim($data['email'] ?? '');
+        $password = $data['password'] ?? '';
+
+        if ($email === '' || $password === '') {
+            return $this->errorResponse($response, 'VALIDATION_ERROR', 'Email and password are required', [], 422);
+        }
+
+        $db = Database::getConnection();
+
+        $stmt = $db->prepare('SELECT id, name, email, password_hash, role FROM users WHERE email = :email');
+        $stmt->execute(['email' => $email]);
+        $user = $stmt->fetch();
+
+        // Deliberately vague error message here - "Invalid email or password"
+        // rather than "email not found" / "wrong password" separately.
+        // This prevents an attacker from using the login endpoint to
+        // enumerate which emails are registered.
+        if (!$user || !password_verify($password, $user['password_hash'])) {
+            return $this->errorResponse($response, 'INVALID_CREDENTIALS', 'Invalid email or password', [], 401);
+        }
+
+        $token = JwtHelper::generateToken((int) $user['id'], $user['email'], $user['role']);
+
+        return $this->successResponse($response, [
+            'token' => $token,
+            'user' => [
+                'id' => $user['id'],
+                'name' => $user['name'],
+                'email' => $user['email'],
+                'role' => $user['role'],
+            ],
+        ], 'Login successful', 200);
+    }
+
+    // POST /api/auth/refresh
+    // Authenticated endpoint (sits behind JwtMiddleware) - issues a fresh
+    // token with a reset expiry, using the user info JwtMiddleware already
+    // decoded and attached to the request.
+    public function refresh(Request $request, Response $response): Response
+    {
+        $user = $request->getAttribute('user');
+
+        $newToken = JwtHelper::generateToken(
+            (int) $user['sub'],
+            $user['email'],
+            $user['role']
+        );
+
+        return $this->successResponse($response, [
+            'token' => $newToken,
+        ], 'Token refreshed', 200);
+    }
+
     // Shared helper for the project's success response convention
     // (per PR1 API contract A.5: { "success": true, "data": {...}, "message": "..." })
     private function successResponse(Response $response, mixed $data, ?string $message, int $status): Response
