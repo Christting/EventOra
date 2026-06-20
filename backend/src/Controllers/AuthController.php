@@ -18,13 +18,14 @@ class AuthController
     // (Organiser/faculty_admin accounts are assigned separately by an
     // existing faculty_admin via the societies/organisers endpoint,
     // not through public self-registration - matches PR1's role model.)
-    public function register(Request $request, Response $response): Response
+public function register(Request $request, Response $response): Response
     {
         $data = $request->getParsedBody();
 
         $name = trim($data['name'] ?? '');
         $email = trim($data['email'] ?? '');
         $password = $data['password'] ?? '';
+        $role = $data['role'] ?? 'attendee';
         $matricNo = trim($data['matric_no'] ?? '') ?: null;
         $phone = trim($data['phone'] ?? '') ?: null;
 
@@ -39,6 +40,15 @@ class AuthController
         }
         if (strlen($password) < 8) {
             $errors['password'] = 'Password must be at least 8 characters';
+        }
+
+        // SECURITY: public self-registration may only create attendee or
+        // organiser accounts. faculty_admin is a privileged approval role
+        // and must never be selectable here - even if the client sends it,
+        // we reject it server-side rather than silently downgrading it,
+        // so a misconfigured frontend fails loudly instead of quietly.
+        if (!in_array($role, ['attendee', 'organiser'], true)) {
+            $errors['role'] = 'Role must be either attendee or organiser';
         }
 
         if (!empty($errors)) {
@@ -68,8 +78,7 @@ class AuthController
                 'name' => $name,
                 'email' => $email,
                 'password_hash' => $passwordHash,
-                // Public self-registration always creates an attendee.
-                'role' => 'attendee',
+                'role' => $role,
                 'matric_no' => $matricNo,
                 'phone' => $phone,
             ]);
@@ -79,7 +88,7 @@ class AuthController
             return $this->errorResponse($response, 'DB_ERROR', 'Could not create account', [], 500);
         }
 
-        $token = JwtHelper::generateToken($userId, $email, 'attendee');
+        $token = JwtHelper::generateToken($userId, $email, $role);
 
         return $this->successResponse($response, [
             'token' => $token,
@@ -87,7 +96,7 @@ class AuthController
                 'id' => $userId,
                 'name' => $name,
                 'email' => $email,
-                'role' => 'attendee',
+                'role' => $role,
             ],
         ], 'Account created successfully', 201);
     }

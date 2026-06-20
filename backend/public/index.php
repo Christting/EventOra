@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use Slim\Factory\AppFactory;
 use Dotenv\Dotenv;
+use App\Controllers\AuthController;
+use App\Middleware\JwtMiddleware;
 
 require __DIR__ . '/../vendor/autoload.php';
 
