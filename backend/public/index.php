@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Slim\Factory\AppFactory;
 use Dotenv\Dotenv;
 use App\Controllers\AuthController;
+use App\Controllers\AdminController;
 use App\Middleware\JwtMiddleware;
 use App\Middleware\RoleMiddleware;
 
@@ -61,5 +62,29 @@ $app->group('/api/me', function ($group) {
     $group->get('', [$controller, 'me']);
     $group->put('', [$controller, 'updateMe']);
 })->add(new JwtMiddleware());
+
+// ============================================
+// Admin Approval routes
+// ============================================
+// Every route in this group requires BOTH a valid JWT AND the
+// faculty_admin role. The ->add() order below looks backwards on
+// purpose - Slim's middleware stack runs LAST-ADDED-FIRST, so writing
+// RoleMiddleware ->add() first and JwtMiddleware ->add() second means
+// the actual execution order at request time is:
+//   1. JwtMiddleware runs first - decodes the token, attaches `user`
+//      to the request, or returns 401 if the token is missing/invalid.
+//   2. RoleMiddleware runs second - checks the now-attached `user.role`
+//      against ['faculty_admin'], or returns 403 if it doesn't match.
+// This is the same verified pattern used and tested earlier when
+// RoleMiddleware was first built.
+$app->group('/api/admin/events', function ($group) {
+    $controller = new AdminController();
+ 
+    $group->get('/pending', [$controller, 'listPendingEvents']);
+    $group->post('/{id}/approve', [$controller, 'approveEvent']);
+    $group->post('/{id}/reject', [$controller, 'rejectEvent']);
+})
+    ->add(new RoleMiddleware(['faculty_admin']))
+    ->add(new JwtMiddleware());
 
 $app->run();
