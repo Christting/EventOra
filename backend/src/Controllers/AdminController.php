@@ -19,6 +19,41 @@ use PDOException;
 // business logic of the approval workflow itself.
 class AdminController
 {
+    // GET /api/admin/events/pending
+    // Lists all events currently awaiting approval, per PR1 5.1:
+    // "Approval queue dashboard lists all pending events with: society name,
+    // event title, date, category, capacity, and submission timestamp."
+    public function listPendingEvents(Request $request, Response $response): Response
+    {
+        $db = Database::getConnection();
+
+        // JOIN societies so we can return the society name directly -
+        // the approval queue UI needs "society name", not just a raw
+        // society_id the admin would have to look up separately.
+        // created_at doubles as the "submission timestamp" PR1 asks for,
+        // since events are only created once an organiser submits them.
+        $stmt = $db->prepare(
+            'SELECT
+                e.id,
+                e.title,
+                e.category,
+                e.capacity,
+                e.start_datetime,
+                e.end_datetime,
+                e.created_at AS submitted_at,
+                s.id AS society_id,
+                s.name AS society_name
+             FROM events e
+             JOIN societies s ON s.id = e.society_id
+             WHERE e.status = :status
+             ORDER BY e.created_at ASC'
+        );
+        $stmt->execute(['status' => 'pending_approval']);
+        $pendingEvents = $stmt->fetchAll();
+
+        return $this->successResponse($response, $pendingEvents, null, 200);
+    }
+
     // Shared lookup used by both approveEvent() and rejectEvent() - fetches
     // only the columns the state-transition check actually needs, rather
     // than the full event row.
