@@ -54,6 +54,147 @@ class AdminController
         return $this->successResponse($response, $pendingEvents, null, 200);
     }
 
+    // POST /api/admin/events/{id}/approve
+    // Approves a pending event: event.status -> published, and a record
+    // is written to event_approvals with decision = 'approved' so there
+    // is a permanent audit trail of who approved it and when
+    // (PR1 5.1: "Approve action: event status transitions to published
+    // and becomes visible on the public listing page.")
+    public function approveEvent(Request $request, Response $response, array $args): Response
+    {
+        $eventId = (int) $args['id'];
+        $authUser = $request->getAttribute('user');
+        $reviewerId = (int) $authUser['sub'];
+
+        $db = Database::getConnection();
+
+        $event = $this->findEventOrNull($db, $eventId);
+
+        if ($event === null) {
+            return $this->errorResponse($response, 'EVENT_NOT_FOUND', 'Event not found', [], 404);
+        }
+
+        // Centralised state-transition check - see checkPendingOrFail()
+        // below for why this is split into 400 vs 409 instead of a single
+        // catch-all error.
+        $stateError = $this->checkPendingOrFail($response, $event);
+        if ($stateError !== null) {
+            return $stateError;
+        }
+
+        try {
+            $db->beginTransaction();
+
+            $updateStmt = $db->prepare(
+                'UPDATE events SET status = :status WHERE id = :id'
+            );
+            $updateStmt->execute([
+                'status' => 'published',
+                'id' => $eventId,
+            ]);
+
+            // reason is intentionally NULL for an approval - PR1's data
+            // dictionary marks event_approvals.reason as
+            // "Rejection reason; required if rejected, nullable if approved"
+            $approvalStmt = $db->prepare(
+                'INSERT INTO event_approvals (event_id, reviewed_by, decision, reason)
+                 VALUES (:event_id, :reviewed_by, :decision, NULL)'
+            );
+            $approvalStmt->execute([
+                'event_id' => $eventId,
+                'reviewed_by' => $reviewerId,
+                'decision' => 'approved',
+            ]);
+
+            $db->commit();
+        } catch (PDOException $e) {
+            $db->rollBack();
+            return $this->errorResponse($response, 'DB_ERROR', 'Could not approve event', [], 500);
+        }
+
+        return $this->successResponse(
+            $response,
+            ['event_id' => $eventId, 'status' => 'published'],
+            'Event approved and published',
+            200
+        );
+    }
+
+    // POST /api/admin/events/{id}/reject
+    // Rejects a pending event: event.status -> rejected, and a record is
+    // written to event_approvals with decision = 'rejected' AND the
+    // mandatory reason. PR1 5.1 is explicit that the reject action
+    // "triggers a modal requiring the admin to enter a rejection reason" -
+    // so on the backend, a missing/empty reason must be rejected with 422,
+    // never silently defaulted to an empty string.
+    public function rejectEvent(Request $request, Response $response, array $args): Response
+    {
+        $eventId = (int) $args['id'];
+        $authUser = $request->getAttribute('user');
+        $reviewerId = (int) $authUser['sub'];
+
+        $data = $request->getParsedBody();
+        $reason = trim((string) ($data['reason'] ?? ''));
+
+        if ($reason === '') {
+            return $this->errorResponse(
+                $response,
+                'VALIDATION_ERROR',
+                'Validation failed',
+                ['reason' => 'A rejection reason is required'],
+                422
+            );
+        }
+
+        $db = Database::getConnection();
+
+        $event = $this->findEventOrNull($db, $eventId);
+
+        if ($event === null) {
+            return $this->errorResponse($response, 'EVENT_NOT_FOUND', 'Event not found', [], 404);
+        }
+
+        $stateError = $this->checkPendingOrFail($response, $event);
+        if ($stateError !== null) {
+            return $stateError;
+        }
+
+        try {
+            $db->beginTransaction();
+
+            $updateStmt = $db->prepare(
+                'UPDATE events SET status = :status WHERE id = :id'
+            );
+            $updateStmt->execute([
+                'status' => 'rejected',
+                'id' => $eventId,
+            ]);
+
+            $approvalStmt = $db->prepare(
+                'INSERT INTO event_approvals (event_id, reviewed_by, decision, reason)
+                 VALUES (:event_id, :reviewed_by, :decision, :reason)'
+            );
+            $approvalStmt->execute([
+                'event_id' => $eventId,
+                'reviewed_by' => $reviewerId,
+                'decision' => 'rejected',
+                'reason' => $reason,
+            ]);
+
+            $db->commit();
+        } catch (PDOException $e) {
+            $db->rollBack();
+            return $this->errorResponse($response, 'DB_ERROR', 'Could not reject event', [], 500);
+        }
+
+        return $this->successResponse(
+            $response,
+            ['event_id' => $eventId, 'status' => 'rejected', 'reason' => $reason],
+            'Event rejected',
+            200
+        );
+    }
+
     // Shared lookup used by both approveEvent() and rejectEvent() - fetches
     // only the columns the state-transition check actually needs, rather
     // than the full event row.
