@@ -1,0 +1,53 @@
+### EventOra — Organiser Dashboard API Test Requests
+@baseUrl = http://localhost:8000
+
+###############################################
+# STEP 0 — Login as organiser to get a fresh token
+###############################################
+
+### 0. Login as organiser (id=1)
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "testuser@example.com",
+  "password": "password123"
+}
+
+###############################################
+# Paste the token from the response above here:
+###############################################
+@organiserToken = PASTE_ORGANISER_TOKEN_HERE
+@adminToken = PASTE_ADMIN_TOKEN_HERE
+
+###############################################
+# TEST 1 — Get organiser dashboard stats
+# Expected: 200 OK
+# event_totals.pending_approval should reflect whatever's left after
+# your earlier Admin Approval API tests (you approved/rejected events
+# 1 and 2 already, so only check event_totals adds up sensibly)
+# total_registrations: 3 (excludes the 1 cancelled)
+# confirmed_registrations: 2
+# attendance.checked_in: 1
+# attendance.rate_percent: 50.0  (1 checked in / 2 confirmed)
+# capacity.total_capacity: 300 (only event id=3 has registrations)
+# capacity.use_percent: depends on total capacity across ALL this
+#   organiser's events, not just event 3 - check the math matches
+#   confirmed_registrations / sum(capacity) across every event
+# average_rating: null (feedback table doesn't exist yet)
+###############################################
+GET {{baseUrl}}/api/dashboard/organiser
+Authorization: Bearer {{organiserToken}}
+
+###############################################
+# TEST 2 — Try the organiser dashboard as faculty_admin (wrong role)
+# Expected: 403 Forbidden
+###############################################
+GET {{baseUrl}}/api/dashboard/organiser
+Authorization: Bearer {{adminToken}}
+
+###############################################
+# TEST 3 — Try the organiser dashboard with no token
+# Expected: 401 Unauthorized
+###############################################
+GET {{baseUrl}}/api/dashboard/organiser
