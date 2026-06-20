@@ -55,8 +55,12 @@
             Account created successfully. Redirecting to sign in...
           </div>
 
-          <button class="button button-primary full-width auth-submit" @click="handleRegister">
-            Create account
+          <button
+            class="button button-primary full-width auth-submit"
+            @click="handleRegister"
+            :disabled="isSubmitting"
+          >
+            {{ isSubmitting ? 'Creating account...' : 'Create account' }}
           </button>
           <p class="auth-footer-text">
             Already have an account? <router-link class="auth-link" to="/login">Sign in</router-link>
@@ -84,12 +88,13 @@ const confirm = ref('')
 const role = ref('attendee')
 const errorMessage = ref('')
 const showSuccess = ref(false)
+const isSubmitting = ref(false)
 
 function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
 
-function handleRegister() {
+async function handleRegister() {
   errorMessage.value = ''
   showSuccess.value = false
 
@@ -110,14 +115,24 @@ function handleRegister() {
     return
   }
 
-  authStore.register({
-    firstName: firstName.value,
-    lastName: lastName.value,
+  isSubmitting.value = true
+
+  // Backend's users table only has a single `name` column (see PR1 data
+  // dictionary) - first/last name are kept as separate fields in this
+  // form purely for UX, then combined here before sending.
+  const result = await authStore.register({
+    name: `${firstName.value} ${lastName.value}`,
     email: email.value,
-    matric: '',
+    password: password.value,
     role: role.value,
-    society: role.value === 'organiser' ? 'Pending society assignment' : 'General Attendee',
   })
+
+  isSubmitting.value = false
+
+  if (!result.success) {
+    errorMessage.value = result.message
+    return
+  }
 
   showSuccess.value = true
   setTimeout(() => router.push('/login'), 900)
