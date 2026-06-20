@@ -37,7 +37,7 @@ $app->get('/', function ($request, $response) {
 });
 
 // ============================================
-// Auth routes (PR1 API Contract Appendix A.1)
+// Auth routes 
 // ============================================
 $app->group('/api/auth', function ($group) {
     $controller = new AuthController();
