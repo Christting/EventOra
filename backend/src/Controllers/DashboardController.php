@@ -43,7 +43,36 @@ class DashboardController
             return $this->successResponse($response, $this->emptyDashboard(), null, 200);
         }
 
-        // Return empty structure for now while building the rest of the queries
+        $eventIds = $this->getEventIdsForSocieties($db, $societyIds);
+
+        $eventTotals = $this->getEventTotalsByStatus($db, $societyIds);
+
+        // No events at all yet (e.g. organiser just joined a brand new
+        // society) - skip the registration/attendance queries entirely,
+        // since they'd all just be IN ([]) which is invalid SQL anyway.
+        if (empty($eventIds)) {
+            return $this->successResponse($response, [
+                'event_totals' => $eventTotals,
+                'total_events' => 0,
+                'total_registrations' => 0,
+                'confirmed_registrations' => 0,
+                'attendance' => [
+                    'checked_in' => 0,
+                    'rate_percent' => null,
+                ],
+                'capacity' => [
+                    'total_capacity' => 0,
+                    'confirmed_count' => 0,
+                    'use_percent' => null,
+                ],
+                // TODO: replace with a real query once the `feedback`
+                // table exists (Should-Have feature, not yet built -
+                // see PR1 5.2). Until then there is nothing to average.
+                'average_rating' => null,
+            ], null, 200);
+        }
+
+        // Temp return to satisfy build before adding registration/capacity logic
         return $this->successResponse($response, $this->emptyDashboard(), null, 200);
     }
 
@@ -61,6 +90,57 @@ class DashboardController
         // fetchAll(PDO::FETCH_COLUMN) pulls just the single column out as
         // a flat array (e.g. [1, 4]) instead of [['society_id' => 1], ...]
         return $stmt->fetchAll(PDO::FETCH_COLUMN);
+    }
+
+    // Finds every event belonging to the given societies, regardless of
+    // status - the dashboard should show drafts and pending events too,
+    // not just published ones, since the organiser needs visibility into
+    // their whole pipeline.
+    private function getEventIdsForSocieties(PDO $db, array $societyIds): array
+    {
+        $placeholders = $this->buildPlaceholders($societyIds);
+
+        $stmt = $db->prepare(
+            "SELECT id FROM events WHERE society_id IN ({$placeholders})"
+        );
+        $stmt->execute($societyIds);
+
+        return $stmt->fetchAll(PDO::FETCH_COLUMN);
+    }
+
+    // Counts events per status (draft, pending_approval, published,
+    // completed, rejected, cancelled), always returning all six keys
+    // even if some are zero - this makes the response predictable for
+    // the frontend (PR1 5.1: "Society dashboard... Status lifecycle").
+    private function getEventTotalsByStatus(PDO $db, array $societyIds): array
+    {
+        $placeholders = $this->buildPlaceholders($societyIds);
+
+        $stmt = $db->prepare(
+            "SELECT status, COUNT(*) AS total
+             FROM events
+             WHERE society_id IN ({$placeholders})
+             GROUP BY status"
+        );
+        $stmt->execute($societyIds);
+        $rows = $stmt->fetchAll();
+
+        // Start every possible status at 0 so the frontend never has to
+        // guess whether a missing key means "zero" or "not loaded yet".
+        $totals = [
+            'draft' => 0,
+            'pending_approval' => 0,
+            'published' => 0,
+            'completed' => 0,
+            'rejected' => 0,
+            'cancelled' => 0,
+        ];
+
+        foreach ($rows as $row) {
+            $totals[$row['status']] = (int) $row['total'];
+        }
+
+        return $totals;
     }
 
     // Shared percentage helper. Returns null (not 0) when the
