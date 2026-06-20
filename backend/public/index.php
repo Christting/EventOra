@@ -30,6 +30,26 @@ $app->addErrorMiddleware(true, true, true);
 // Needed so $request->getParsedBody() actually works for JSON POST/PUT bodies
 $app->addBodyParsingMiddleware();
 
+// CORS: allow the Vite dev server (localhost:5173) to call this API.
+// Without this, the browser blocks every request before it even
+// reaches our routes - this is purely a browser-side security check,
+// not something PHP can see or control after the fact.
+$app->add(function ($request, $handler) {
+    $response = $handler->handle($request);
+    return $response
+        ->withHeader('Access-Control-Allow-Origin', 'http://localhost:5173')
+        ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+        ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+});
+
+// Browsers send a separate OPTIONS "preflight" request before the real
+// POST/PUT/etc request, just to check the CORS headers above. This
+// route catches that preflight and returns 200 immediately, without
+// running any of our actual route logic (auth, DB, etc.) for it.
+$app->options('/{routes:.+}', function ($request, $response) {
+    return $response;
+});
+
 // Quick health check route, just to confirm the backend is alive
 $app->get('/', function ($request, $response) {
     $response->getBody()->write(json_encode([
