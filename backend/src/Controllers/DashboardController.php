@@ -15,6 +15,54 @@ use PDO;
 // assume the caller is already authenticated and holds the organiser role.
 class DashboardController
 {
+    // GET /api/dashboard/organiser
+    // Returns event totals, registration counts, attendance rate,
+    // capacity use, and average rating - scoped ONLY to events belonging
+    // to societies this organiser is a member of (PR1's security model:
+    // "An organiser can only manage events belonging to societies they
+    // are a member of; cross-society access is rejected with HTTP 403").
+    //
+    // Note this isn't a 403 case though - there's no "other organiser's
+    // data" being requested here. The society_members lookup below is
+    // simply how we find OUR OWN scope, the same way GET /api/me already
+    // looks up the caller's own profile by their own id.
+    public function organiserDashboard(Request $request, Response $response): Response
+    {
+        $authUser = $request->getAttribute('user');
+        $organiserId = (int) $authUser['sub'];
+
+        $db = Database::getConnection();
+
+        $societyIds = $this->getOrganiserSocietyIds($db, $organiserId);
+
+        // An organiser who isn't (yet) attached to any society has
+        // nothing to report on. Returning all-zero stats here is more
+        // correct than a 404 or 403 - the organiser account itself is
+        // valid, there's just no data to aggregate yet.
+        if (empty($societyIds)) {
+            return $this->successResponse($response, $this->emptyDashboard(), null, 200);
+        }
+
+        // Return empty structure for now while building the rest of the queries
+        return $this->successResponse($response, $this->emptyDashboard(), null, 200);
+    }
+
+    // Finds every society this organiser belongs to. Per the data
+    // dictionary, society_members.role can be 'organiser' or
+    // 'co_organiser' - both count as membership for dashboard purposes,
+    // so we don't filter by role here.
+    private function getOrganiserSocietyIds(PDO $db, int $organiserId): array
+    {
+        $stmt = $db->prepare(
+            'SELECT society_id FROM society_members WHERE user_id = :user_id'
+        );
+        $stmt->execute(['user_id' => $organiserId]);
+
+        // fetchAll(PDO::FETCH_COLUMN) pulls just the single column out as
+        // a flat array (e.g. [1, 4]) instead of [['society_id' => 1], ...]
+        return $stmt->fetchAll(PDO::FETCH_COLUMN);
+    }
+
     // Shared percentage helper. Returns null (not 0) when the
     // denominator is zero, because "0% capacity used" and "we don't
     // have a capacity to measure against" are different facts - a null
@@ -47,6 +95,36 @@ class DashboardController
     private function buildPlaceholders(array $items): string
     {
         return implode(', ', array_fill(0, count($items), '?'));
+    }
+
+    // Returns an all-zero/empty dashboard shape for an organiser with no
+    // society membership yet, so the frontend always receives the same
+    // response shape regardless of how little data exists.
+    private function emptyDashboard(): array
+    {
+        return [
+            'event_totals' => [
+                'draft' => 0,
+                'pending_approval' => 0,
+                'published' => 0,
+                'completed' => 0,
+                'rejected' => 0,
+                'cancelled' => 0,
+            ],
+            'total_events' => 0,
+            'total_registrations' => 0,
+            'confirmed_registrations' => 0,
+            'attendance' => [
+                'checked_in' => 0,
+                'rate_percent' => null,
+            ],
+            'capacity' => [
+                'total_capacity' => 0,
+                'confirmed_count' => 0,
+                'use_percent' => null,
+            ],
+            'average_rating' => null,
+        ];
     }
 
     // Same success/error response helpers as AuthController and
