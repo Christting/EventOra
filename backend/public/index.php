@@ -36,4 +36,29 @@ $app->get('/', function ($request, $response) {
     return $response->withHeader('Content-Type', 'application/json');
 });
 
+// ============================================
+// Auth routes (PR1 API Contract Appendix A.1)
+// ============================================
+$app->group('/api/auth', function ($group) {
+    $controller = new AuthController();
+
+    // Public - no JwtMiddleware needed
+    $group->post('/register', [$controller, 'register']);
+    $group->post('/login', [$controller, 'login']);
+
+    // Authenticated - JwtMiddleware runs first, decodes the token,
+    // and attaches user info to the request before these run
+    $group->post('/refresh', [$controller, 'refresh'])->add(new JwtMiddleware());
+    $group->post('/logout', [$controller, 'logout'])->add(new JwtMiddleware());
+});
+
+// GET/PUT /api/me - also part of the auth contract but not under /api/auth
+// since it's a profile resource, not an auth action
+$app->group('/api/me', function ($group) {
+    $controller = new AuthController();
+
+    $group->get('', [$controller, 'me']);
+    $group->put('', [$controller, 'updateMe']);
+})->add(new JwtMiddleware());
+
 $app->run();
