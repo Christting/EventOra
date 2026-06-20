@@ -82,6 +82,13 @@ class AdminController
             return $stateError;
         }
 
+        // The JWT payload only carries sub/email/role by design (kept
+        // deliberately small, and a user's name can change without
+        // invalidating their existing token). So to return a human-
+        // readable reviewer name to the frontend, we look it up here
+        // rather than adding it to the JWT itself.
+        $reviewerName = $this->getUserName($db, $reviewerId);
+
         try {
             $db->beginTransaction();
 
@@ -114,7 +121,14 @@ class AdminController
 
         return $this->successResponse(
             $response,
-            ['event_id' => $eventId, 'status' => 'published'],
+            [
+                'event_id' => $eventId,
+                'status' => 'published',
+                'reviewed_by' => [
+                    'id' => $reviewerId,
+                    'name' => $reviewerName,
+                ],
+            ],
             'Event approved and published',
             200
         );
@@ -159,6 +173,10 @@ class AdminController
             return $stateError;
         }
 
+        // Same reasoning as approveEvent() - JWT doesn't carry name, so we
+        // look it up here to give the frontend a human-readable reviewer.
+        $reviewerName = $this->getUserName($db, $reviewerId);
+
         try {
             $db->beginTransaction();
 
@@ -189,7 +207,15 @@ class AdminController
 
         return $this->successResponse(
             $response,
-            ['event_id' => $eventId, 'status' => 'rejected', 'reason' => $reason],
+            [
+                'event_id' => $eventId,
+                'status' => 'rejected',
+                'reason' => $reason,
+                'reviewed_by' => [
+                    'id' => $reviewerId,
+                    'name' => $reviewerName,
+                ],
+            ],
             'Event rejected',
             200
         );
@@ -205,6 +231,18 @@ class AdminController
         $event = $stmt->fetch();
 
         return $event ?: null;
+    }
+
+    // Looks up a user's display name by id. Used to attach a human-
+    // readable "reviewed_by" name to the approve/reject response, since
+    // the JWT payload itself only contains sub/email/role (see JwtHelper).
+    private function getUserName(PDO $db, int $userId): ?string
+    {
+        $stmt = $db->prepare('SELECT name FROM users WHERE id = :id');
+        $stmt->execute(['id' => $userId]);
+        $user = $stmt->fetch();
+
+        return $user['name'] ?? null;
     }
 
     // Centralised state-transition validation for approve/reject.
