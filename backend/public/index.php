@@ -7,6 +7,7 @@ use Dotenv\Dotenv;
 use App\Controllers\AuthController;
 use App\Controllers\AdminController;
 use App\Controllers\DashboardController;
+use App\Controllers\EventController;
 use App\Middleware\JwtMiddleware;
 use App\Middleware\RoleMiddleware;
 
@@ -115,6 +116,16 @@ $app->group('/api/admin/events', function ($group) {
 // a different allowed role. JwtMiddleware (outer, runs first) decodes
 // the token; RoleMiddleware (inner, runs second) checks for 'organiser'.
 $app->get('/api/dashboard/organiser', [new DashboardController(), 'organiserDashboard'])
+    ->add(new RoleMiddleware(['organiser']))
+    ->add(new JwtMiddleware());
+
+// MINIMAL SCAFFOLD - see EventController.php for context. Organiser-only,
+// lets the Admin Approval Queue have real events to review.
+$app->group('/api/events', function ($group) {
+    $controller = new EventController();
+    $group->post('', [$controller, 'create']);
+    $group->get('/mine', [$controller, 'listMine']);
+})
     ->add(new RoleMiddleware(['organiser']))
     ->add(new JwtMiddleware());
 
