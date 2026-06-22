@@ -23,25 +23,29 @@
         </thead>
         <tbody>
           <tr v-for="ev in approvalEvents" :key="ev.id" style="border-bottom:1px solid var(--border);">
-            <td>{{ ev.society }}</td>
+            <td>{{ ev.society_name }}</td>
             <td>
               <strong>{{ ev.title }}</strong>
               <div v-if="ev.reason" style="color:var(--muted);font-size:0.78rem;margin-top:4px;">
                 Reason: {{ ev.reason }}
               </div>
             </td>
-            <td>{{ ev.date }}</td>
+            <td>{{ formatDate(ev.start_datetime) }}</td>
             <td>{{ ev.category }}</td>
             <td>{{ ev.capacity }}</td>
             <td>
-              <span v-if="ev.status === 'approved'" class="badge badge-green">Approved</span>
+              <span v-if="ev.status === 'published'" class="badge badge-green">Approved</span>
               <span v-else-if="ev.status === 'rejected'" class="badge badge-red">Rejected</span>
               <span v-else class="badge badge-yellow">Pending</span>
             </td>
             <td class="admin-actions">
-              <template v-if="ev.status === 'pending'">
-                <button class="button button-primary" @click="approveEvent(ev)">Approve</button>
-                <button class="button button-secondary" @click="openRejectModal(ev)">Reject</button>
+              <template v-if="ev.status === 'pending_approval'">
+                <button class="button button-primary" :disabled="actionInProgress === ev.id" @click="approveEvent(ev)">
+                  {{ actionInProgress === ev.id ? 'Approving...' : 'Approve' }}
+                </button>
+                <button class="button button-secondary" :disabled="actionInProgress === ev.id" @click="openRejectModal(ev)">
+                  Reject
+                </button>
               </template>
             </td>
           </tr>
@@ -67,7 +71,7 @@
           <div>
             <p class="eyebrow">You are rejecting</p>
             <h3>{{ selectedEvent?.title }}</h3>
-            <span style="color:var(--muted);font-size:0.82rem;">{{ selectedEvent?.society }}</span>
+            <span style="color:var(--muted);font-size:0.82rem;">{{ selectedEvent?.society_name }}</span>
           </div>
           <span class="badge badge-red">Pending rejection</span>
         </div>
@@ -87,7 +91,9 @@
         </div>
         <div class="modal-actions" style="margin-top:20px;">
           <button class="button button-ghost" @click="closeModal">Cancel</button>
-          <button class="button button-danger" @click="confirmReject">Confirm Rejection</button>
+          <button class="button button-danger" :disabled="isSubmittingReject" @click="confirmReject">
+            {{ isSubmittingReject ? 'Submitting...' : 'Confirm Rejection' }}
+          </button>
         </div>
       </div>
     </div>
@@ -98,34 +104,63 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import axios from 'axios'
+import { getPendingEventsApi, approveEventApi, rejectEventApi } from '@/api/admin'
 
 const approvalEvents = ref([])
 const loadingEvents = ref(true)
 const loadError = ref('')
 
-onMounted(async () => {
+// Tracks which event row currently has an approve/reject request in
+// flight, so we can disable just that row's buttons (not the whole
+// table) and show a per-row "Approving..." state.
+const actionInProgress = ref(null)
+
+async function loadPendingEvents() {
+  loadingEvents.value = true
+  loadError.value = ''
+
   try {
-    const response = await axios.get('/mock/approval-events.json')
-    approvalEvents.value = response.data
+    const response = await getPendingEventsApi()
+    approvalEvents.value = response.data.data
   } catch (err) {
-    loadError.value = 'Failed to load approval events. Please try again later.'
+    loadError.value = err.response?.data?.error?.message || 'Failed to load approval events. Please try again later.'
   } finally {
     loadingEvents.value = false
   }
-})
+}
 
-const pendingCount = computed(() => approvalEvents.value.filter((e) => e.status === 'pending').length)
+onMounted(loadPendingEvents)
+
+const pendingCount = computed(() => approvalEvents.value.filter((e) => e.status === 'pending_approval').length)
 
 const showModal = ref(false)
 const selectedEvent = ref(null)
 const rejectReason = ref('')
 const modalError = ref('')
+const isSubmittingReject = ref(false)
 const toast = ref({ message: '', type: 'success' })
 
-function approveEvent(ev) {
-  ev.status = 'approved'
-  showToast('Event approved successfully.', 'success')
+function formatDate(datetime) {
+  if (!datetime) return ''
+  return new Date(datetime).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+async function approveEvent(ev) {
+  actionInProgress.value = ev.id
+
+  try {
+    await approveEventApi(ev.id)
+    // Re-fetch the pending list rather than mutating ev.status locally -
+    // the approved event should disappear from this queue entirely,
+    // which a local mutation can't express as cleanly as a fresh load.
+    await loadPendingEvents()
+    showToast('Event approved successfully.', 'success')
+  } catch (err) {
+    const message = err.response?.data?.error?.message || 'Failed to approve event.'
+    showToast(message, 'danger')
+  } finally {
+    actionInProgress.value = null
+  }
 }
 
 function openRejectModal(ev) {
@@ -140,15 +175,24 @@ function closeModal() {
   selectedEvent.value = null
 }
 
-function confirmReject() {
+async function confirmReject() {
   if (!rejectReason.value.trim()) {
     modalError.value = 'Please provide a rejection reason.'
     return
   }
-  selectedEvent.value.status = 'rejected'
-  selectedEvent.value.reason = rejectReason.value
-  showToast('Event rejected. Reason has been recorded.', 'danger')
-  closeModal()
+
+  isSubmittingReject.value = true
+
+  try {
+    await rejectEventApi(selectedEvent.value.id, rejectReason.value)
+    await loadPendingEvents()
+    showToast('Event rejected. Reason has been recorded.', 'danger')
+    closeModal()
+  } catch (err) {
+    modalError.value = err.response?.data?.error?.message || 'Failed to reject event.'
+  } finally {
+    isSubmittingReject.value = false
+  }
 }
 
 function showToast(message, type) {
