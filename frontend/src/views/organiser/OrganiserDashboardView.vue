@@ -34,8 +34,9 @@
           </article>
           <article class="od-stat-card">
             <span>Avg. Feedback Rating</span>
-            <strong>{{ avgRating }} ★</strong>
-            <p>From {{ feedbackData.length }} responses</p>
+            <strong>{{ avgRatingDisplay }} <span v-if="avgRatingDisplay !== 'N/A'">★</span></strong>
+            <p v-if="avgRatingDisplay === 'N/A'">No feedback data yet</p>
+            <p v-else>From {{ feedbackData.length }} responses</p>
           </article>
         </div>
 
@@ -198,6 +199,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { getOrganiserDashboardApi } from '@/api/dashboard'
 
 const route = useRoute()
 const router = useRouter()
@@ -271,19 +273,45 @@ function statusLabel(status) {
   return status.replace('_', ' ')
 }
 
-// ===== Stats (computed) =====
-const totalEvents = computed(() => societyEvents.value.length)
-const publishedCount = computed(() => societyEvents.value.filter((ev) => ev.status === 'published').length)
-const pendingCount = computed(() => societyEvents.value.filter((ev) => ev.status === 'pending_approval').length)
-const totalRegistrations = computed(() => societyEvents.value.reduce((sum, ev) => sum + ev.registrations, 0))
-const totalCheckedIn = computed(() => societyEvents.value.reduce((sum, ev) => sum + ev.checkedIn, 0))
-const attendanceRate = computed(() =>
-  totalRegistrations.value ? Math.round((totalCheckedIn.value / totalRegistrations.value) * 100) : 0
-)
-const avgRating = computed(() => {
-  const ratings = societyEvents.value.filter((ev) => ev.avgRating).map((ev) => ev.avgRating)
-  if (!ratings.length) return '0.0'
-  return (ratings.reduce((sum, r) => sum + r, 0) / ratings.length).toFixed(1)
+// ===== Stats (now sourced from GET /api/dashboard/organiser, not
+// societyEvents - those 3 mock events below only feed the Events tab
+// table for now, see the "still mock" note in the tab section below) =====
+const dashboardStats = ref(null)
+const dashboardLoading = ref(true)
+const dashboardError = ref('')
+
+async function loadDashboardStats() {
+  dashboardLoading.value = true
+  dashboardError.value = ''
+
+  try {
+    const response = await getOrganiserDashboardApi()
+    dashboardStats.value = response.data.data
+  } catch (err) {
+    dashboardError.value = err.response?.data?.error?.message || 'Failed to load dashboard stats.'
+  } finally {
+    dashboardLoading.value = false
+  }
+}
+
+const totalEvents = computed(() => dashboardStats.value?.total_events ?? 0)
+const publishedCount = computed(() => dashboardStats.value?.event_totals?.published ?? 0)
+const pendingCount = computed(() => dashboardStats.value?.event_totals?.pending_approval ?? 0)
+const totalRegistrations = computed(() => dashboardStats.value?.total_registrations ?? 0)
+const totalCheckedIn = computed(() => dashboardStats.value?.attendance?.checked_in ?? 0)
+
+// rate_percent can be null (no confirmed registrations to measure
+// against yet) - safePercentage() on the backend returns null rather
+// than 0 specifically so this distinction isn't lost.
+const attendanceRate = computed(() => dashboardStats.value?.attendance?.rate_percent ?? 0)
+
+// average_rating is always null until the feedback table exists
+// (see DashboardController TODO). Showing "N/A" here instead of "0.0"
+// avoids implying a real (bad) rating exists when there's simply no
+// data yet.
+const avgRatingDisplay = computed(() => {
+  const rating = dashboardStats.value?.average_rating
+  return rating === null || rating === undefined ? 'N/A' : rating.toFixed(1)
 })
 
 const confirmedRegistrations = computed(
@@ -375,5 +403,6 @@ function addCreatedEventToDashboard(status) {
 
 onMounted(() => {
   showCreateEventToast()
+  loadDashboardStats()
 })
 </script>
