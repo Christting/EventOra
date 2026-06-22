@@ -35,6 +35,7 @@ class AdminController
         $stmt = $db->prepare(
             'SELECT
                 e.id,
+                e.status,
                 e.title,
                 e.category,
                 e.capacity,
