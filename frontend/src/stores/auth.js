@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { loginApi, registerApi } from '@/api/auth'
+import { updateProfileApi } from '@/api/auth'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem('eventora_token') || null)
@@ -52,6 +53,15 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  function updateProfile(updatedUser) {
+  user.value = {
+    ...user.value,
+    ...updatedUser
+  }
+
+  localStorage.setItem('eventora_user', JSON.stringify(user.value))
+}
+
   function logout() {
     token.value = null
     user.value = null
@@ -61,6 +71,6 @@ export const useAuthStore = defineStore('auth', () => {
 
   return {
     token, user, isLoggedIn, role, isAdmin, isOrganiser,
-    login, register, logout,
+    login, register, logout, updateProfile
   }
 })

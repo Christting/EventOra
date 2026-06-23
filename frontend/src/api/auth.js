@@ -8,3 +8,7 @@ export function loginApi(email, password) {
 export function registerApi(payload) {
   return apiClient.post('/auth/register', payload)
 }
+
+export function updateProfileApi(payload) {
+  return apiClient.put('/me', payload)
+}
