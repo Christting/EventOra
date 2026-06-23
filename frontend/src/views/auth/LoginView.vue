@@ -48,23 +48,14 @@
             Signed in successfully. Redirecting...
           </div>
 
-          <button class="button button-primary full-width auth-submit" @click="handleLogin" aria-label="Sign in">
-            Sign in
+          <button
+            class="button button-primary full-width auth-submit"
+            @click="handleLogin"
+            :disabled="isSubmitting"
+            aria-label="Sign in"
+          >
+            {{ isSubmitting ? 'Signing in...' : 'Sign in' }}
           </button>
-
-          <div class="auth-divider"><span>Sign in as</span></div>
-
-          <div class="auth-roles">
-            <button
-              v-for="r in roles"
-              :key="r.value"
-              :class="['auth-role-chip', { active: selectedRole === r.value }]"
-              @click="selectedRole = r.value"
-              :aria-label="`Sign in as ${r.label}`"
-            >
-              {{ r.label }}
-            </button>
-          </div>
 
           <p class="auth-footer-text">
             Don't have an account? <router-link class="auth-link" to="/register">Create one</router-link>
@@ -89,19 +80,13 @@ const password = ref('')
 const rememberMe = ref(false)
 const errorMessage = ref('')
 const showSuccess = ref(false)
-const selectedRole = ref('attendee')
-
-const roles = [
-  { value: 'attendee', label: 'Attendee' },
-  { value: 'organiser', label: 'Organiser' },
-  { value: 'faculty_admin', label: 'Faculty Admin' },
-]
+const isSubmitting = ref(false)
 
 function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
 
-function handleLogin() {
+async function handleLogin() {
   errorMessage.value = ''
   showSuccess.value = false
 
@@ -114,7 +99,9 @@ function handleLogin() {
     return
   }
 
-  const result = authStore.login(email.value, password.value, selectedRole.value, rememberMe.value)
+  isSubmitting.value = true
+  const result = await authStore.login(email.value, password.value)
+  isSubmitting.value = false
 
   if (!result.success) {
     errorMessage.value = result.message
@@ -122,9 +109,13 @@ function handleLogin() {
   }
 
   showSuccess.value = true
+
+  // Role now comes from the backend's response (authStore.role), not
+  // from a chip the user picked - the redirect destination follows
+  // whatever account they actually logged into.
   setTimeout(() => {
-    if (selectedRole.value === 'organiser') router.push('/organiser/dashboard')
-    else if (selectedRole.value === 'faculty_admin') router.push('/admin')
+    if (authStore.role === 'organiser') router.push('/organiser/dashboard')
+    else if (authStore.role === 'faculty_admin') router.push('/admin')
     else router.push('/')
   }, 700)
 }
