@@ -2,168 +2,190 @@
   <main class="detail-shell">
     <router-link class="back-link" to="/organiser/dashboard">← Back to Dashboard</router-link>
 
-    <section class="detail-header">
-      <div>
-        <span :class="['badge', badgeForStatus(status)]">{{ statusLabel(status) }}</span>
-        <h1>{{ selectedEvent?.title || 'Event Title' }}</h1>
-        <p>{{ selectedEvent?.society || 'Computer Society UTM' }} · Activity preview for organiser</p>
-      </div>
-    </section>
+    <div v-if="loading" class="state-banner state-loading">Loading event…</div>
+    <div v-else-if="loadError" class="state-banner state-error">{{ loadError }}</div>
 
-    <section class="detail-layout">
-      <article class="detail-card">
-        <div
-          class="poster-preview"
-          :style="eventImage ? {
-            backgroundImage: `linear-gradient(rgba(49, 46, 129, 0.35), rgba(49, 46, 129, 0.55)), url(${eventImage})`
-          } : {}"
-        >
-          <div>
-            <span :class="['badge', category === 'Sports' ? 'badge-yellow' : 'badge-blue']">
-              {{ category }}
+    <template v-else>
+      <section class="detail-header">
+        <div>
+          <span :class="['badge', badgeForStatus(status)]">{{ statusLabel(status) }}</span>
+          <h1>{{ selectedEvent?.title || 'Event Title' }}</h1>
+          <p>{{ selectedEvent?.society || 'Computer Society UTM' }} · Activity preview for organiser</p>
+        </div>
+      </section>
+
+      <section class="detail-layout">
+        <article class="detail-card">
+          <div
+            class="poster-preview"
+            :style="eventImage ? {
+              backgroundImage: `linear-gradient(rgba(49, 46, 129, 0.35), rgba(49, 46, 129, 0.55)), url(${eventImage})`
+            } : {}"
+          >
+            <div>
+              <span :class="['badge', category === 'Sports' ? 'badge-yellow' : 'badge-blue']">
+                {{ category }}
+              </span>
+              <h2>{{ selectedEvent?.title }}</h2>
+              <p>{{ description }}</p>
+            </div>
+          </div>
+
+          <div class="info-grid">
+            <div class="info-item">
+              <span>Date &amp; Time</span>
+              <strong>
+                {{ selectedEvent?.eventDate || 'Not set' }},
+                {{ selectedEvent?.startTime || '--' }} - {{ selectedEvent?.endTime || '--' }}
+              </strong>
+            </div>
+
+            <div class="info-item">
+              <span>Venue</span>
+              <strong>{{ selectedEvent?.location || 'Not set' }}</strong>
+            </div>
+
+            <div class="info-item">
+              <span>Registration Deadline</span>
+              <strong>{{ formattedDeadline }}</strong>
+            </div>
+
+            <div class="info-item">
+              <span>Capacity</span>
+              <strong>{{ selectedEvent?.capacity || 0 }} attendees</strong>
+            </div>
+
+            <div class="info-item">
+              <span>Ticket</span>
+              <strong>{{ ticketLabel }}</strong>
+            </div>
+
+            <div class="info-item">
+              <span>Current Status</span>
+              <strong>{{ statusLabel(status) }}</strong>
+            </div>
+          </div>
+
+          <h2 class="section-title">Event Description</h2>
+          <p class="description-text">{{ description }}</p>
+        </article>
+
+        <aside class="side-card">
+          <h2>Approval Workflow</h2>
+
+          <div :class="approvalNoteClass">
+            <strong>{{ approvalNoteTitle }}</strong>
+            <p>{{ approvalNoteText }}</p>
+          </div>
+
+          <div class="detail-list">
+            <div>
+              <dt>Workflow</dt>
+              <dd>Draft → Pending approval → Published</dd>
+            </div>
+
+            <div>
+              <dt>Public listing</dt>
+              <dd>
+                {{ status === 'published' ? 'Visible in public event list' : 'Hidden until Faculty Admin approval' }}
+              </dd>
+            </div>
+
+            <div>
+              <dt>Last updated</dt>
+              <dd>{{ selectedEvent?.updatedAt || '8 Jun 2026, 10:30 AM' }}</dd>
+            </div>
+          </div>
+
+          <h2 class="section-title">Available Actions</h2>
+
+          <div class="action-list">
+            <span
+              v-if="status === 'pending_approval'"
+              class="badge badge-yellow status-full"
+            >
+              Waiting for Admin
             </span>
-            <h2>{{ selectedEvent?.title }}</h2>
-            <p>{{ description }}</p>
-          </div>
-        </div>
 
-        <div class="info-grid">
-          <div class="info-item">
-            <span>Date &amp; Time</span>
-            <strong>
-              {{ selectedEvent?.eventDate || 'Not set' }},
-              {{ selectedEvent?.startTime || '--' }} - {{ selectedEvent?.endTime || '--' }}
-            </strong>
-          </div>
+            <router-link
+              v-if="status !== 'cancelled' && status !== 'completed'"
+              :to="`/organiser/create-event?edit=${selectedEvent?.id}`"
+              class="button button-secondary full-width"
+            >
+              Edit Event
+            </router-link>
 
-          <div class="info-item">
-            <span>Venue</span>
-            <strong>{{ selectedEvent?.location || 'Not set' }}</strong>
-          </div>
+            <button
+              v-if="status === 'draft' || status === 'rejected'"
+              class="button button-primary full-width"
+              :disabled="actionLoading"
+              @click="handleAction('submit')"
+            >
+              {{ status === 'rejected' ? 'Resubmit for Approval' : 'Submit for Approval' }}
+            </button>
 
-          <div class="info-item">
-            <span>Registration Deadline</span>
-            <strong>{{ formattedDeadline }}</strong>
-          </div>
+            <button
+              v-if="status === 'draft' || status === 'rejected'"
+              class="button button-danger full-width"
+              :disabled="actionLoading"
+              @click="handleAction('delete')"
+            >
+              Delete Draft
+            </button>
 
-          <div class="info-item">
-            <span>Capacity</span>
-            <strong>{{ selectedEvent?.capacity || 0 }} attendees</strong>
-          </div>
+            <button
+              v-if="status === 'pending_approval'"
+              class="button button-danger full-width"
+              :disabled="actionLoading"
+              @click="handleAction('cancel_submission')"
+            >
+              Cancel Submission
+            </button>
 
-          <div class="info-item">
-            <span>Ticket</span>
-            <strong>{{ ticketLabel }}</strong>
-          </div>
+            <button
+              v-if="status === 'published'"
+              class="button button-danger full-width"
+              :disabled="actionLoading"
+              @click="handleAction('cancel')"
+            >
+              Cancel Event
+            </button>
 
-          <div class="info-item">
-            <span>Current Status</span>
-            <strong>{{ statusLabel(status) }}</strong>
-          </div>
-        </div>
-
-        <h2 class="section-title">Event Description</h2>
-        <p class="description-text">{{ description }}</p>
-      </article>
-
-      <aside class="side-card">
-        <h2>Approval Workflow</h2>
-
-        <div :class="approvalNoteClass">
-          <strong>{{ approvalNoteTitle }}</strong>
-          <p>{{ approvalNoteText }}</p>
-        </div>
-
-        <div class="detail-list">
-          <div>
-            <dt>Workflow</dt>
-            <dd>Draft → Pending approval → Published</dd>
+            <span
+              v-if="status === 'cancelled' || status === 'completed'"
+              class="badge badge-gray status-full"
+            >
+              No available actions
+            </span>
           </div>
 
-          <div>
-            <dt>Public listing</dt>
-            <dd>
-              {{ status === 'published' ? 'Visible in public event list' : 'Hidden until Faculty Admin approval' }}
-            </dd>
-          </div>
-
-          <div>
-            <dt>Last updated</dt>
-            <dd>8 Jun 2026, 10:30 AM</dd>
-          </div>
-        </div>
-
-        <h2 class="section-title">Available Actions</h2>
-
-        <div class="action-list">
-          <span
-            v-if="status === 'pending_approval'"
-            class="badge badge-yellow status-full"
-          >
-            Waiting for Admin
-          </span>
-
-          <router-link
-            v-if="status !== 'cancelled' && status !== 'completed'"
-            :to="`/organiser/create-event?edit=${selectedEvent?.id}`"
-            class="button button-secondary full-width"
-          >
-            Edit Event
-          </router-link>
-
-          <button
-            v-if="status === 'draft' || status === 'rejected'"
-            class="button button-primary full-width"
-            @click="handleAction('submit')"
-          >
-            {{ status === 'rejected' ? 'Resubmit for Approval' : 'Submit for Approval' }}
-          </button>
-
-          <button
-            v-if="status === 'draft' || status === 'rejected'"
-            class="button button-danger full-width"
-            @click="handleAction('delete')"
-          >
-            Delete Draft
-          </button>
-
-          <button
-            v-if="status === 'pending_approval'"
-            class="button button-danger full-width"
-            @click="handleAction('cancel_submission')"
-          >
-            Cancel Submission
-          </button>
-
-          <button
-            v-if="status === 'published'"
-            class="button button-danger full-width"
-            @click="handleAction('cancel')"
-          >
-            Cancel Event
-          </button>
-
-          <span
-            v-if="status === 'cancelled' || status === 'completed'"
-            class="badge badge-gray status-full"
-          >
-            No available actions
-          </span>
-        </div>
-      </aside>
-    </section>
+          <p v-if="actionError" class="action-error-text">{{ actionError }}</p>
+        </aside>
+      </section>
+    </template>
   </main>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import {
+  getOrganiserEventDetailApi,
+  submitEventForApprovalApi,
+  deleteDraftEventApi,
+  cancelEventApi,
+  cancelEventSubmissionApi,
+} from '@/api/events'
 
 const route = useRoute()
 const router = useRouter()
 
 const eventsStorageKey = 'eventora_society_events_v2'
 
+// Fallback mock data, used only if the backend call fails (e.g. API not
+// wired up yet, or offline dev). Mirrors the shape returned by
+// getOrganiserEventDetailApi so the rest of the component doesn't need
+// to care which source it came from.
 const defaultEvents = [
   {
     id: 1,
@@ -227,18 +249,51 @@ const defaultEvents = [
   },
 ]
 
-const societyEvents = ref(
-  JSON.parse(localStorage.getItem(eventsStorageKey) || 'null') || defaultEvents
-)
+// ── State ─────────────────────────────────────────────────────────────────
+const selectedEvent = ref(null)
+const loading = ref(true)
+const loadError = ref('')
+const actionLoading = ref(false)
+const actionError = ref('')
 
-const selectedEvent = computed(() => {
-  const id = route.params.id || route.query.id
+function getEventId() {
+  return route.params.id || route.query.id
+}
 
-  if (!id) return societyEvents.value[0] || null
+function saveEventsToLocalFallback(events) {
+  localStorage.setItem(eventsStorageKey, JSON.stringify(events))
+}
 
-  return societyEvents.value.find((ev) => String(ev.id) === String(id)) || null
-})
+// ── Load event detail (backend first, localStorage/mock fallback) ───────────
+async function loadEventDetail() {
+  loading.value = true
+  loadError.value = ''
+  const id = getEventId()
 
+  try {
+    const response = await getOrganiserEventDetailApi(id)
+    selectedEvent.value = response.data.data
+  } catch (err) {
+    // Backend not available / event not found via API - fall back to the
+    // localStorage cache (written by the dashboard's mock merge) or the
+    // hardcoded defaults, so the page still renders something useful in
+    // local dev or while the backend endpoint is being built.
+    const cached = JSON.parse(localStorage.getItem(eventsStorageKey) || 'null') || defaultEvents
+    const found = id
+      ? cached.find((ev) => String(ev.id) === String(id))
+      : cached[0]
+
+    if (found) {
+      selectedEvent.value = found
+    } else {
+      loadError.value = err.response?.data?.error?.message || 'Event not found.'
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+// ── Derived values ───────────────────────────────────────────────────────────
 const status = computed(() => selectedEvent.value?.status || 'draft')
 const category = computed(() => selectedEvent.value?.category || 'Academic')
 const eventImage = computed(() => selectedEvent.value?.posterImage || selectedEvent.value?.bannerImage)
@@ -317,43 +372,69 @@ const approvalNoteText = computed(() => {
   return map[status.value] || 'This event is still editable. Submit it when all details are ready.'
 })
 
-function saveEvents() {
-  localStorage.setItem(eventsStorageKey, JSON.stringify(societyEvents.value))
-}
-
-function handleAction(action) {
+// ── Actions ───────────────────────────────────────────────────────────────────
+// Each action calls the backend first. On failure we still patch
+// localStorage as a best-effort fallback (matching the dashboard's mock
+// merge behaviour) so the UI doesn't appear totally broken in local dev,
+// but we surface the error rather than silently pretending it succeeded.
+async function handleAction(action) {
   const id = selectedEvent.value?.id
+  if (!id) return
 
-  if (action === 'submit') {
-    societyEvents.value = societyEvents.value.map((ev) =>
-      ev.id === id ? { ...ev, status: 'pending_approval' } : ev
-    )
-    saveEvents()
-    router.push({ path: '/organiser/dashboard', query: { eventAction: 'submitted' } })
-  }
+  actionLoading.value = true
+  actionError.value = ''
 
-  if (action === 'delete') {
-    societyEvents.value = societyEvents.value.filter((ev) => ev.id !== id)
-    saveEvents()
-    router.push({ path: '/organiser/dashboard', query: { eventAction: 'deleted' } })
-  }
+  try {
+    if (action === 'submit') {
+      await submitEventForApprovalApi(id)
+      router.push({ path: '/organiser/dashboard', query: { eventAction: 'submitted' } })
+      return
+    }
 
-  if (action === 'cancel_submission') {
-    societyEvents.value = societyEvents.value.map((ev) =>
-      ev.id === id ? { ...ev, status: 'draft' } : ev
-    )
-    saveEvents()
-    router.push({ path: '/organiser/dashboard', query: { eventAction: 'submission_cancelled' } })
-  }
+    if (action === 'delete') {
+      await deleteDraftEventApi(id)
+      router.push({ path: '/organiser/dashboard', query: { eventAction: 'deleted' } })
+      return
+    }
 
-  if (action === 'cancel') {
-    societyEvents.value = societyEvents.value.map((ev) =>
-      ev.id === id ? { ...ev, status: 'cancelled' } : ev
-    )
-    saveEvents()
-    router.push({ path: '/organiser/dashboard', query: { eventAction: 'cancelled' } })
+    if (action === 'cancel_submission') {
+      await cancelEventSubmissionApi(id)
+      router.push({ path: '/organiser/dashboard', query: { eventAction: 'submission_cancelled' } })
+      return
+    }
+
+    if (action === 'cancel') {
+      await cancelEventApi(id)
+      // Dashboard toast relies on eventAction === 'cancelled' to know to
+      // show the "Event cancelled" message - keep this in sync with
+      // OrganiserDashboardView's showCreateEventToast().
+      router.push({ path: '/organiser/dashboard', query: { eventAction: 'cancelled' } })
+      return
+    }
+  } catch (err) {
+    actionError.value = err.response?.data?.error?.message || 'Action failed. Please try again.'
+
+    // Best-effort local fallback so a developer without the backend
+    // running can still click through the flow during UI work.
+    const cached = JSON.parse(localStorage.getItem(eventsStorageKey) || 'null') || defaultEvents
+    let nextStatus = null
+    if (action === 'submit') nextStatus = 'pending_approval'
+    if (action === 'cancel_submission') nextStatus = 'draft'
+    if (action === 'cancel') nextStatus = 'cancelled'
+
+    if (action === 'delete') {
+      saveEventsToLocalFallback(cached.filter((ev) => String(ev.id) !== String(id)))
+    } else if (nextStatus) {
+      saveEventsToLocalFallback(
+        cached.map((ev) => (String(ev.id) === String(id) ? { ...ev, status: nextStatus } : ev))
+      )
+    }
+  } finally {
+    actionLoading.value = false
   }
 }
+
+onMounted(loadEventDetail)
 </script>
 
 <style scoped>
@@ -370,6 +451,26 @@ function handleAction(action) {
   color: var(--muted);
   text-decoration: none;
   font-size: 0.86rem;
+}
+
+.state-banner {
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 18px;
+}
+
+.state-loading {
+  background: #eef2ff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+}
+
+.state-error {
+  background: var(--danger-soft);
+  color: #991b1b;
+  border: 1px solid #fecaca;
 }
 
 .detail-header {
@@ -519,6 +620,17 @@ function handleAction(action) {
 .status-full {
   justify-content: center;
   width: 100%;
+}
+
+.action-error-text {
+  margin-top: 10px;
+  color: #991b1b;
+  font-size: 0.82rem;
+}
+
+button.full-width:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 @media (max-width: 900px) {

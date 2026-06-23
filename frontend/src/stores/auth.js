@@ -1,87 +1,66 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-
-const demoProfiles = {
-  attendee: {
-    firstName: 'Student',
-    lastName: 'User',
-    email: 'student@utm.my',
-    matric: 'A24CS0001',
-    role: 'attendee',
-    society: 'General Attendee',
-  },
-  organiser: {
-    firstName: 'Mei',
-    lastName: 'Shuet',
-    email: 'mei@utm.my',
-    matric: 'A24CS0102',
-    role: 'organiser',
-    society: 'UTM Computing Society',
-  },
-  faculty_admin: {
-    firstName: 'Faculty',
-    lastName: 'Admin',
-    email: 'admin@utm.my',
-    matric: 'ADMIN001',
-    role: 'faculty_admin',
-    society: 'Faculty of Computing',
-  },
-}
+import { loginApi, registerApi } from '@/api/auth'
 
 export const useAuthStore = defineStore('auth', () => {
-  const session = ref(JSON.parse(localStorage.getItem('eventora_session') || 'null'))
-  const registeredUser = ref(JSON.parse(localStorage.getItem('eventora_registered_user') || 'null'))
+  const token = ref(localStorage.getItem('eventora_token') || null)
+  const user = ref(JSON.parse(localStorage.getItem('eventora_user') || 'null'))
 
-  const isLoggedIn = computed(() => !!session.value?.isLoggedIn)
-  const user = computed(() => session.value?.user || null)
+  const isLoggedIn = computed(() => !!token.value)
   const role = computed(() => user.value?.role || null)
   const isAdmin = computed(() => role.value === 'faculty_admin')
   const isOrganiser = computed(() => role.value === 'organiser')
 
-  function login(email, password, selectedRole, rememberMe) {
-    const baseProfile =
-      registeredUser.value && registeredUser.value.email === email
-        ? registeredUser.value
-        : demoProfiles[selectedRole]
+  // Persists the token + user object from a successful login/register
+  // response into both reactive state (for the current session) and
+  // localStorage (so a page refresh doesn't log the user out).
+  function setSession(data) {
+    token.value = data.token
+    user.value = data.user
 
-    const sessionUser = { ...baseProfile, email, role: selectedRole }
+    localStorage.setItem('eventora_token', data.token)
+    localStorage.setItem('eventora_user', JSON.stringify(data.user))
+  }
 
-    session.value = {
-      isLoggedIn: true,
-      rememberMe,
-      signedInAt: new Date().toISOString(),
-      user: sessionUser,
+  // Now async and hits the real backend. Role is NOT passed in anymore -
+  // the backend looks up the account and returns whatever role it
+  // actually has; the frontend just displays it.
+  async function login(email, password) {
+    try {
+      const response = await loginApi(email, password)
+      setSession(response.data.data)
+      return { success: true }
+    } catch (error) {
+      // error.response exists for any HTTP error status (401, 422, etc.) -
+      // .error.message is the human-readable string our AuthController
+      // always includes per the project's error response convention.
+      const message = error.response?.data?.error?.message || 'Login failed. Please try again.'
+      return { success: false, message }
     }
-
-    localStorage.setItem('eventora_session', JSON.stringify(session.value))
-    localStorage.setItem('userRole', selectedRole)
-
-    return { success: true }
   }
 
-  function register(payload) {
-    registeredUser.value = payload
-    localStorage.setItem('eventora_registered_user', JSON.stringify(payload))
-    return { success: true }
-  }
-
-  function updateProfile(updatedUser) {
-    registeredUser.value = updatedUser
-    session.value = { ...(session.value || {}), isLoggedIn: true, updatedAt: new Date().toISOString(), user: updatedUser }
-
-    localStorage.setItem('eventora_registered_user', JSON.stringify(updatedUser))
-    localStorage.setItem('eventora_session', JSON.stringify(session.value))
-    localStorage.setItem('userRole', updatedUser.role)
+  // payload must contain: name, email, password, role ('attendee' or
+  // 'organiser' only - the backend rejects anything else server-side).
+  async function register(payload) {
+    try {
+      const response = await registerApi(payload)
+      setSession(response.data.data)
+      return { success: true }
+    } catch (error) {
+      const message = error.response?.data?.error?.message || 'Registration failed. Please try again.'
+      return { success: false, message }
+    }
   }
 
   function logout() {
-    session.value = null
-    localStorage.removeItem('eventora_session')
-    localStorage.removeItem('userRole')
+    token.value = null
+    user.value = null
+    localStorage.removeItem('eventora_token')
+    localStorage.removeItem('eventora_user')
   }
 
   return {
-    session, registeredUser, user, isLoggedIn, role, isAdmin, isOrganiser,
-    login, register, updateProfile, logout,
+    token, user, isLoggedIn, role, isAdmin, isOrganiser,
+    login, register, logout,
   }
 })

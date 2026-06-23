@@ -12,11 +12,11 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
-  path: '/notifications',
-  name: 'notifications',
-  component: () => import('@/views/NotificationView.vue'),
-  meta: { requiresAuth: true },
-},
+    path: '/notifications',
+    name: 'notifications',
+    component: () => import('@/views/NotificationView.vue'),
+    meta: { requiresAuth: true },
+  },
   {
     path: '/admin',
     name: 'admin-dashboard',
@@ -29,12 +29,12 @@ const routes = [
     component: () => import('@/views/admin/ApprovalQueueView.vue'),
     meta: { requiresAuth: true, role: 'faculty_admin' },
   },
-{
-  path: '/admin/approval-detail/:id',
-  name: 'approval-detail',
-  component: () => import('@/views/admin/ApprovalDetailView.vue'),
-  meta: { requiresAuth: true, role: 'faculty_admin' },
-},
+  {
+    path: '/admin/approval-detail/:id',
+    name: 'approval-detail',
+    component: () => import('@/views/admin/ApprovalDetailView.vue'),
+    meta: { requiresAuth: true, role: 'faculty_admin' },
+  },
   {
     path: '/organiser/dashboard',
     name: 'organiser-dashboard',
