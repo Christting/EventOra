@@ -1,0 +1,42 @@
+### EventOra - Notifications API Test Requests
+@baseUrl = http://localhost:8000
+
+###############################################
+# STEP 0 - Login first, then paste token below
+###############################################
+
+### Login as organiser
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "testuser@example.com",
+  "password": "password123"
+}
+
+### Paste token from login response here
+@token = PASTE_TOKEN_HERE
+
+###############################################
+# TEST 1 - List my notifications
+###############################################
+GET {{baseUrl}}/api/notifications
+Authorization: Bearer {{token}}
+
+###############################################
+# TEST 2 - Get unread count
+###############################################
+GET {{baseUrl}}/api/notifications/unread-count
+Authorization: Bearer {{token}}
+
+###############################################
+# TEST 3 - Mark one notification as read
+###############################################
+POST {{baseUrl}}/api/notifications/1/read
+Authorization: Bearer {{token}}
+
+###############################################
+# TEST 4 - Mark all notifications as read
+###############################################
+POST {{baseUrl}}/api/notifications/read-all
+Authorization: Bearer {{token}}

@@ -9,6 +9,7 @@ use App\Controllers\AdminController;
 use App\Controllers\DashboardController;
 use App\Controllers\EventController;
 use App\Controllers\SocietyController;
+use App\Controllers\NotificationController;
 use App\Middleware\JwtMiddleware;
 use App\Middleware\RoleMiddleware;
 
@@ -140,5 +141,17 @@ $app->group('/api/events', function ($group) {
 })
     ->add(new RoleMiddleware(['organiser']))
     ->add(new JwtMiddleware());
+
+// ============================================
+// Notification routes
+// ============================================
+$app->group('/api/notifications', function ($group) {
+    $controller = new NotificationController();
+
+    $group->get('', [$controller, 'index']);
+    $group->get('/unread-count', [$controller, 'unreadCount']);
+    $group->post('/{id}/read', [$controller, 'markAsRead']);
+    $group->post('/read-all', [$controller, 'markAllAsRead']);
+})->add(new JwtMiddleware());
 
 $app->run();
