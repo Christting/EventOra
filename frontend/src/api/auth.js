@@ -1,14 +1,10 @@
-// src/api/admin.js
+// src/api/auth.js
 import apiClient from './client'
 
-export function getPendingEventsApi() {
-  return apiClient.get('/admin/events/pending')
+export function loginApi(email, password) {
+  return apiClient.post('/auth/login', { email, password })
 }
 
-export function approveEventApi(eventId) {
-  return apiClient.post(`/admin/events/${eventId}/approve`)
-}
-
-export function rejectEventApi(eventId, reason) {
-  return apiClient.post(`/admin/events/${eventId}/reject`, { reason })
+export function registerApi(payload) {
+  return apiClient.post('/auth/register', payload)
 }
