@@ -14,6 +14,26 @@ export function getMyEventsApi() {
   return apiClient.get('/events/mine')
 }
 
+export function getOrganiserEventDetailApi(eventId) {
+  return apiClient.get(`/events/${eventId}`)
+}
+
+export function updateEventApi(eventId, payload) {
+  return apiClient.put(`/events/${eventId}`, payload)
+}
+
+export function submitEventForApprovalApi(eventId) {
+  return apiClient.post(`/events/${eventId}/submit`)
+}
+
+export function deleteDraftEventApi(eventId) {
+  return apiClient.delete(`/events/${eventId}`)
+}
+
+export function cancelEventSubmissionApi(eventId) {
+  return apiClient.patch(`/events/${eventId}/cancel-submission`)
+}
+
 export function cancelEventApi(eventId) {
   return apiClient.patch(`/events/${eventId}/cancel`)
 }

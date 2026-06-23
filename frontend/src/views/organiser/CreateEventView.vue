@@ -2,7 +2,7 @@
   <main class="create-shell">
     <section class="create-header">
       <router-link to="/organiser/dashboard">← Back to Dashboard</router-link>
-      <h1>Create New Event</h1>
+      <h1>{{ isEditMode ? 'Edit Event' : 'Create New Event' }}</h1>
       <p>Fill in the details. Faculty admin will review before publishing.</p>
     </section>
 
@@ -264,7 +264,7 @@
               title="Draft saving isn't supported by the backend yet (current scaffold only supports submitting directly to pending_approval)"
             >Save Draft</button>
             <button class="button button-primary" :disabled="isSubmitting" @click="submitEvent">
-              {{ isSubmitting ? 'Submitting…' : 'Submit for Approval' }}
+              {{ isSubmitting ? 'Submitting…' : (isEditMode ? 'Update & Submit' : 'Submit for Approval') }}
             </button>
           </div>
         </div>
@@ -277,7 +277,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { createEventApi } from '@/api/events'
+import { createEventApi, getOrganiserEventDetailApi, updateEventApi } from '@/api/events'
 import { getMySocietiesApi } from '@/api/societies'
 
 const route = useRoute()
@@ -294,6 +294,7 @@ const currentStep    = ref(0)
 const stepError      = ref('')
 const submitError    = ref('')
 const isSubmitting   = ref(false)
+const isEditMode     = computed(() => Boolean(route.query.edit))
 
 const societyOptions   = ref([])
 const loadingSocieties = ref(true)
@@ -375,7 +376,33 @@ onMounted(async () => {
   } finally {
     loadingSocieties.value = false
   }
+
+  if (route.query.edit) {
+    await loadEventForEdit(route.query.edit)
+  }
 })
+
+async function loadEventForEdit(eventId) {
+  try {
+    const response = await getOrganiserEventDetailApi(eventId)
+    const event = response.data.data
+
+    form.title = event.title || ''
+    form.category = event.category || ''
+    form.societyId = societyOptions.value.find((society) => society.name === event.society_name)?.id || form.societyId
+    form.startDateTime = toDateTimeLocal(event.startAt)
+    form.endDateTime = toDateTimeLocal(event.endAt)
+    form.location = event.venue || event.location || ''
+    form.description = event.description || ''
+    form.capacity = event.capacity || null
+    form.deadline = toDateTimeLocal(event.registrationDeadline)
+    form.feeType = event.feeType || 'free'
+    form.feeAmount = event.feeAmount || 0
+    form.waitlist = event.waitlistEnabled === false ? 'disabled' : 'enabled'
+  } catch (err) {
+    submitError.value = err.response?.data?.error?.message || 'Failed to load event for editing.'
+  }
+}
 
 // ── Image upload handlers ─────────────────────────────────────────────────────
 
@@ -447,9 +474,10 @@ async function submitEvent() {
   isSubmitting.value = true
 
   try {
-    const response = await createEventApi({
+    const payload = {
       society_id:      form.societyId,
       title:           form.title,
+      description:     form.description,
       venue:           form.location,
       category:        form.category,
       start_datetime:  datetimeLocalToMysql(form.startDateTime),
@@ -458,11 +486,19 @@ async function submitEvent() {
       capacity:        form.capacity,
       fee_type:        form.feeType,
       fee_amount:       form.feeType === 'paid' ? form.feeAmount : 0,
-    })
+      waitlist_enabled: form.waitlist === 'enabled',
+      contact_person:  form.contactName,
+      contact_email:   form.contactEmail,
+      special_instructions: form.instructions,
+    }
+
+    const response = isEditMode.value
+      ? await updateEventApi(route.query.edit, payload)
+      : await createEventApi(payload)
 
     router.push({
       path: '/organiser/dashboard',
-      query: { eventSaved: 'submitted', eventId: response.data.data.id },
+      query: { eventSaved: 'submitted', eventId: response.data.data.id || route.query.edit },
     })
   } catch (err) {
     const apiError = err.response?.data?.error

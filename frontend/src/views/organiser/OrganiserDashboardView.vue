@@ -269,6 +269,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { loadNotifications as loadStoredNotifications } from '@/stores/notifications'
 import { getOrganiserDashboardApi } from '@/api/dashboard'
+import { getMyEventsApi } from '@/api/events'
 import { Chart, BarController, BarElement, CategoryScale, LinearScale, Tooltip } from 'chart.js'
 
 // Chart.js v4 is "tree-shakeable" - it does NOT auto-register every chart
@@ -458,6 +459,15 @@ function formatTimeOnly(date) {
 }
 
 async function loadSocietyEvents() {
+  try {
+    const response = await getMyEventsApi()
+    societyEvents.value = response.data.data.map(normaliseEvent)
+    saveEvents()
+    return
+  } catch (error) {
+    // Fall back to mock data below when the backend is offline.
+  }
+
   try {
     const response = await fetch('/mock/events.json')
 
