@@ -11,6 +11,16 @@ const societyEventsStorageKey = 'eventora_society_events_v2'
 let hasLoadedApprovalEvents = false
 
 const approvalEventDetails = {
+  104: {
+    submittedBy: 'Siti Noor',
+    submittedAt: 'just now',
+    displayDate: '15 Jul 2026, 9:00 AM - 5:00 PM',
+    venue: 'Dewan Sultan Iskandar, UTM JB',
+    deadline: '10 Jul 2026, 11:59 PM',
+    price: 'RM 5.00',
+    description:
+      'Annual Tech Symposium 2026 brings together students, organisers, and faculty members for a full-day technology event. The event includes tech talks, demo booths, student project showcases, and networking sessions.',
+  },
   101: {
     submittedBy: 'Siti Noor',
     submittedAt: '2 hours ago',

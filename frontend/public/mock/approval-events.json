@@ -1,4 +1,5 @@
 [
+  { "id": 104, "society": "Computer Society UTM", "title": "Annual Tech Symposium 2026", "date": "2026-07-15", "category": "Academic", "capacity": 120, "status": "pending" },
   { "id": 101, "society": "Robotics Club", "title": "Line Follower Workshop", "date": "2026-07-10", "category": "Academic", "capacity": 30, "status": "pending" },
   { "id": 102, "society": "Entrepreneurship Society", "title": "Startup Pitch Night", "date": "2026-07-15", "category": "Academic", "capacity": 50, "status": "approved" },
   { "id": 103, "society": "Music Club", "title": "Acoustic Night", "date": "2026-07-18", "category": "Cultural", "capacity": 80, "status": "rejected", "reason": "Venue booking confirmation is missing." }

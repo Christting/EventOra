@@ -196,6 +196,19 @@ onMounted(async () => {
 
 const basePublicEvents = [
   {
+    id: 'event-annual-tech-2026',
+    title: 'Annual Tech Symposium 2026',
+    society: 'Computer Society UTM',
+    category: 'academic',
+    price: 5,
+    priceType: 'paid',
+    date: '2026-07-15T09:00:00',
+    venue: 'Dewan Sultan Iskandar, UTM JB',
+    seatsLeft: 42,
+    coverClass: 'academic-cover',
+    badgeClass: 'badge-blue',
+  },
+  {
     id: 1,
     title: 'Build Your First AI App',
     society: 'UTM Computing Society',
