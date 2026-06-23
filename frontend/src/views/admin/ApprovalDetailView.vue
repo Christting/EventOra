@@ -15,13 +15,13 @@
 
       <section class="approval-header">
         <div>
-          <span v-if="event.status === 'approved'" class="badge badge-green">Approved</span>
+          <span v-if="event.status === 'published'" class="badge badge-green">Approved</span>
           <span v-else-if="event.status === 'rejected'" class="badge badge-red">Rejected</span>
           <span v-else class="badge badge-yellow">Pending approval</span>
 
           <h1>{{ event.title }}</h1>
           <p>
-            {{ event.society }} · Submitted by {{ eventDetail.submittedBy }},
+            {{ event.society_name }} · Submitted by {{ eventDetail.submittedBy }},
             {{ eventDetail.submittedAt }}
           </p>
         </div>
@@ -65,7 +65,7 @@
             </div>
             <div class="info-item">
               <span>Submitted By</span>
-              <strong>{{ event.society }}</strong>
+              <strong>{{ event.society_name }}</strong>
             </div>
           </div>
 
@@ -76,7 +76,7 @@
         <aside class="decision-card">
           <h2>Approval Decision</h2>
 
-          <div v-if="event.status === 'pending'" class="review-note">
+          <div v-if="event.status === 'pending_approval'" class="review-note">
             <strong>Faculty Admin review required</strong>
             <p>
               Approving this event will allow it to appear in the public event list.
@@ -84,7 +84,7 @@
             </p>
           </div>
 
-          <div v-else-if="event.status === 'approved'" class="approved-note">
+          <div v-else-if="event.status === 'published'" class="approved-note">
             <strong>Approved</strong>
             <p>This event has been approved and can appear in the public event list.</p>
           </div>
@@ -94,7 +94,7 @@
             <p>{{ event.reason || 'No reason provided.' }}</p>
           </div>
 
-          <div v-if="event.status === 'pending'" class="decision-actions">
+          <div v-if="event.status === 'pending_approval'" class="decision-actions">
             <button class="button button-success full-width" @click="approveEvent">
               Approve Event
             </button>
@@ -119,7 +119,7 @@
             <p class="eyebrow">Reject event</p>
             <h3>{{ event.title }}</h3>
             <span style="color:var(--muted);font-size:0.82rem;">
-              {{ event.society }}
+              {{ event.society_name }}
             </span>
           </div>
           <span class="badge badge-red">Reason required</span>
@@ -154,13 +154,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import {
-  approvalEvents,
-  loadingApprovalEvents,
-  loadApprovalEvents,
-  updateApprovalEvent,
-  getApprovalEventDetails,
-} from '@/stores/approvalEvents'
+import { approveEventApi, getAdminEventApi, rejectEventApi } from '@/api/admin'
 
 const route = useRoute()
 const router = useRouter()
@@ -168,40 +162,84 @@ const router = useRouter()
 const showModal = ref(false)
 const rejectReason = ref('')
 const modalError = ref('')
+const event = ref(null)
+const loading = ref(true)
+const loadError = ref('')
 
-onMounted(() => {
-  loadApprovalEvents()
-})
+onMounted(loadEvent)
 
-const loading = loadingApprovalEvents
+async function loadEvent() {
+  loading.value = true
+  loadError.value = ''
 
-const event = computed(() =>
-  approvalEvents.value.find((item) => String(item.id) === String(route.params.id))
-)
-
-const eventDetail = computed(() =>
-  event.value ? getApprovalEventDetails(event.value) : {}
-)
-
-function approveEvent() {
-  updateApprovalEvent(event.value.id, 'approved', '')
-  router.push('/admin/approval-queue')
+  try {
+    const response = await getAdminEventApi(route.params.id)
+    event.value = response.data.data
+  } catch (err) {
+    loadError.value = err.response?.data?.error?.message || 'Event not found.'
+  } finally {
+    loading.value = false
+  }
 }
 
-function rejectEvent() {
+const eventDetail = computed(() => {
+  if (!event.value) return {}
+  return {
+    description: event.value.description || 'No description provided.',
+    venue: event.value.venue || 'Not set',
+    deadline: formatDate(event.value.reg_deadline),
+    displayDate: `${formatDate(event.value.start_datetime)} - ${formatTime(event.value.end_datetime)}`,
+    price: event.value.fee_type === 'paid' ? `RM ${Number(event.value.fee_amount || 0).toFixed(2)}` : 'Free',
+    submittedBy: event.value.created_by_name || event.value.society_name,
+    submittedAt: formatDate(event.value.created_at),
+    image: '',
+  }
+})
+
+async function approveEvent() {
+  try {
+    await approveEventApi(event.value.id)
+    router.push('/admin/approval-queue')
+  } catch (err) {
+    modalError.value = err.response?.data?.error?.message || 'Failed to approve event.'
+  }
+}
+
+async function rejectEvent() {
   if (!rejectReason.value.trim()) {
     modalError.value = 'Please provide a rejection reason.'
     return
   }
 
-  updateApprovalEvent(event.value.id, 'rejected', rejectReason.value.trim())
-  router.push('/admin/approval-queue')
+  try {
+    await rejectEventApi(event.value.id, rejectReason.value.trim())
+    router.push('/admin/approval-queue')
+  } catch (err) {
+    modalError.value = err.response?.data?.error?.message || 'Failed to reject event.'
+  }
 }
 
 function closeModal() {
   showModal.value = false
   rejectReason.value = ''
   modalError.value = ''
+}
+
+function formatDate(value) {
+  if (!value) return 'Not set'
+  return new Date(value).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+function formatTime(value) {
+  if (!value) return '--'
+  return new Date(value).toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 </script>
 
