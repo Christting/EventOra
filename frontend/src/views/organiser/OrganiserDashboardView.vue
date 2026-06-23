@@ -165,12 +165,20 @@
             <div>
               <h2>Feedback & Ratings</h2>
               <p style="color:var(--muted);margin:4px 0 0;">
-                Average Rating: <strong>{{ avgRating }} / 5</strong> from {{ feedbackData.length }} reviews
+                Average Rating: <strong>{{ localAvgRating }} / 5</strong> from {{ feedbackData.length }} reviews
               </p>
             </div>
             <button class="button button-primary" @click="exportCSV(feedbackData, 'feedback.csv')">
               Export Feedback CSV
             </button>
+          </div>
+          <!-- Chart.js draws onto this single canvas element. The
+               v-if on the parent div means this canvas only exists in
+               the DOM while this tab is active - that's exactly why the
+               watch(currentTab, ...) below has to redraw on every
+               re-entry into this tab, not just on first page load. -->
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem;margin-bottom:1.25rem;height:260px;">
+            <canvas ref="feedbackChartCanvas"></canvas>
           </div>
           <div class="event-grid">
             <article v-for="(f, idx) in feedbackData" :key="idx" class="event-card">
@@ -197,9 +205,15 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getOrganiserDashboardApi } from '@/api/dashboard'
+import { Chart, BarController, BarElement, CategoryScale, LinearScale, Tooltip } from 'chart.js'
+
+// Chart.js v4 is "tree-shakeable" - it does NOT auto-register every chart
+// type/scale like v2 did. If you skip this line, the bar chart silently
+// fails to render with no console error, which is a classic gotcha.
+Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip)
 
 const route = useRoute()
 const router = useRouter()
@@ -244,6 +258,75 @@ const feedbackData = [
   { rating: 5, comment: 'Very inspiring' },
 ]
 
+// BUG FIX: the feedback tab used to reference `avgRating`, but that
+// computed got deleted in the dashboard-API refactor (replaced by
+// avgRatingDisplay, which is a DIFFERENT thing - the backend's
+// average_rating, currently always null). This is the LOCAL average of
+// the 3 hardcoded feedbackData entries, purely for the feedback tab's
+// own "Average Rating: X / 5" line. Renamed (not reused as `avgRating`)
+// so it's unmistakably a separate concern from avgRatingDisplay.
+const localAvgRating = computed(() => {
+  if (!feedbackData.length) return '0.0'
+  const sum = feedbackData.reduce((total, f) => total + f.rating, 0)
+  return (sum / feedbackData.length).toFixed(1)
+})
+
+// Rubric target: "Organiser Dashboard with Chart.js feedback stats and
+// ratings" (PR1 Role Split). Buckets feedbackData into how many people
+// gave 1 star, 2 stars, etc. This is independent of the backend - it
+// reads the same local feedbackData array as localAvgRating above.
+const ratingDistribution = computed(() => {
+  const counts = [0, 0, 0, 0, 0] // index 0 = 1 star ... index 4 = 5 stars
+  feedbackData.forEach((f) => {
+    if (f.rating >= 1 && f.rating <= 5) counts[f.rating - 1] += 1
+  })
+  return counts
+})
+
+const feedbackChartCanvas = ref(null)
+let feedbackChartInstance = null
+
+function renderFeedbackChart() {
+  // Guard: the canvas only exists in the DOM while the Feedback tab is
+  // active (because of v-if="currentTab === 'feedback'" in the template).
+  if (!feedbackChartCanvas.value) return
+
+  // Destroy any previous instance before redrawing - Chart.js doesn't
+  // auto-clean-up, and skipping this causes overlapping ghost charts
+  // every time the organiser revisits this tab.
+  if (feedbackChartInstance) {
+    feedbackChartInstance.destroy()
+  }
+
+  feedbackChartInstance = new Chart(feedbackChartCanvas.value, {
+    type: 'bar',
+    data: {
+      labels: ['1 ★', '2 ★', '3 ★', '4 ★', '5 ★'],
+      datasets: [
+        {
+          label: 'Number of responses',
+          data: ratingDistribution.value,
+          backgroundColor: '#6366f1',
+          borderRadius: 6,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { stepSize: 1 },
+        },
+      },
+    },
+  })
+}
+
 const tabs = [
   { key: 'events', label: 'Events' },
   { key: 'registrations', label: 'Registrations' },
@@ -252,6 +335,17 @@ const tabs = [
 ]
 
 const currentTab = ref('events')
+
+// Must come after currentTab's declaration (const isn't hoisted the way
+// function declarations are). The canvas is destroyed/recreated by
+// v-if on every tab switch, so the chart has to be redrawn every time
+// "feedback" becomes active again, not just once on page load.
+watch(currentTab, async (tab) => {
+  if (tab === 'feedback') {
+    await nextTick()
+    renderFeedbackChart()
+  }
+})
 
 const societyEvents = ref(
   JSON.parse(localStorage.getItem(eventsStorageKey) || 'null') || defaultEvents
@@ -273,9 +367,7 @@ function statusLabel(status) {
   return status.replace('_', ' ')
 }
 
-// ===== Stats (now sourced from GET /api/dashboard/organiser, not
-// societyEvents - those 3 mock events below only feed the Events tab
-// table for now, see the "still mock" note in the tab section below) =====
+// ===== Stats (sourced from GET /api/dashboard/organiser) =====
 const dashboardStats = ref(null)
 const dashboardLoading = ref(true)
 const dashboardError = ref('')
@@ -299,16 +391,12 @@ const publishedCount = computed(() => dashboardStats.value?.event_totals?.publis
 const pendingCount = computed(() => dashboardStats.value?.event_totals?.pending_approval ?? 0)
 const totalRegistrations = computed(() => dashboardStats.value?.total_registrations ?? 0)
 const totalCheckedIn = computed(() => dashboardStats.value?.attendance?.checked_in ?? 0)
-
-// rate_percent can be null (no confirmed registrations to measure
-// against yet) - safePercentage() on the backend returns null rather
-// than 0 specifically so this distinction isn't lost.
 const attendanceRate = computed(() => dashboardStats.value?.attendance?.rate_percent ?? 0)
 
-// average_rating is always null until the feedback table exists
-// (see DashboardController TODO). Showing "N/A" here instead of "0.0"
-// avoids implying a real (bad) rating exists when there's simply no
-// data yet.
+// average_rating is always null until the feedback table exists (see
+// DashboardController TODO). This is the BACKEND number, intentionally
+// separate from localAvgRating above which is the feedback tab's own
+// local 3-entry average.
 const avgRatingDisplay = computed(() => {
   const rating = dashboardStats.value?.average_rating
   return rating === null || rating === undefined ? 'N/A' : rating.toFixed(1)
