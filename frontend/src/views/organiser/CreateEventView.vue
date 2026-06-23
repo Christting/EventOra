@@ -2,7 +2,7 @@
   <main class="create-shell">
     <section class="create-header">
       <router-link to="/organiser/dashboard">← Back to Dashboard</router-link>
-      <h1>{{ editingEventId ? 'Edit Event' : 'Create New Event' }}</h1>
+      <h1>Create New Event</h1>
       <p>Fill in the details. Faculty admin will review before publishing.</p>
     </section>
 
@@ -31,21 +31,19 @@
           Category *
           <select v-model="form.category">
             <option value="">Select category...</option>
-            <option>Academic</option>
-            <option>Sports</option>
-            <option>Cultural</option>
-            <option>Religious</option>
-            <option>Workshop</option>
+            <option value="academic">Academic</option>
+            <option value="sports">Sports</option>
+            <option value="cultural">Cultural</option>
+            <option value="religious">Religious</option>
           </select>
         </label>
         <label class="form-label">
           Society *
-          <select v-model="form.society">
-            <option>Computer Society UTM</option>
-            <option>IEEE UTM</option>
-            <option>Sports Club UTM</option>
-            <option>Cultural Club</option>
+          <select v-model="form.societyId" :disabled="loadingSocieties">
+            <option value="" disabled>{{ loadingSocieties ? 'Loading...' : 'Select society...' }}</option>
+            <option v-for="s in societyOptions" :key="s.id" :value="s.id">{{ s.name }}</option>
           </select>
+          <span v-if="societyLoadError" class="auth-error">{{ societyLoadError }}</span>
         </label>
       </div>
 
@@ -123,14 +121,14 @@
         <div class="input-row-2">
           <div class="ticket-option">
             <strong>
-              <input type="radio" value="Free" v-model="form.feeType" />
+              <input type="radio" value="free" v-model="form.feeType" />
               Free event
             </strong>
             <p>Students can register without mock payment.</p>
           </div>
           <div class="ticket-option">
             <strong>
-              <input type="radio" value="Paid" v-model="form.feeType" />
+              <input type="radio" value="paid" v-model="form.feeType" />
               Paid event
             </strong>
             <p>Students complete mock payment before ticket confirmation.</p>
@@ -146,7 +144,7 @@
             min="0"
             step="0.01"
             v-model.number="form.feeAmount"
-            :disabled="form.feeType === 'Free'"
+            :disabled="form.feeType === 'free'"
             placeholder="0.00"
           />
         </label>
@@ -230,9 +228,9 @@
           } : {}"
         >
           <div>
-            <span class="badge badge-blue">{{ form.category || 'Academic' }}</span>
+            <span class="badge badge-blue">{{ categoryLabel || 'Academic' }}</span>
             <h3>{{ form.title || 'Untitled Event' }}</h3>
-            <p>{{ form.society }} · Faculty approval required</p>
+            <p>{{ societyName }} · Faculty approval required</p>
           </div>
         </div>
 
@@ -240,9 +238,9 @@
           <div class="review-item"><span>Date &amp; Time</span><strong>{{ formattedDateRange }}</strong></div>
           <div class="review-item"><span>Venue</span><strong>{{ form.location || 'Not set' }}</strong></div>
           <div class="review-item"><span>Capacity</span><strong>{{ form.capacity || 0 }} attendees</strong></div>
-          <div class="review-item"><span>Ticket</span><strong>{{ form.feeType === 'Paid' ? `RM ${form.feeAmount || 0}` : 'Free' }}</strong></div>
+          <div class="review-item"><span>Ticket</span><strong>{{ form.feeType === 'paid' ? `RM ${form.feeAmount || 0}` : 'Free' }}</strong></div>
           <div class="review-item"><span>Deadline</span><strong>{{ formattedDeadline }}</strong></div>
-          <div class="review-item"><span>Status</span><strong>{{ editingEventId ? 'Updated Draft' : 'Draft' }}</strong></div>
+          <div class="review-item"><span>Status</span><strong>Pending Approval (on submit)</strong></div>
         </div>
       </article>
 
@@ -260,10 +258,17 @@
         <div class="create-actions">
           <button class="button button-ghost" @click="prevStep">Back</button>
           <div style="display:flex;gap:10px;">
-            <button class="button button-secondary" @click="submitEvent('draft')">Save Draft</button>
-            <button class="button button-primary" @click="submitEvent('submitted')">Submit for Approval</button>
+            <button
+              class="button button-secondary"
+              disabled
+              title="Draft saving isn't supported by the backend yet (current scaffold only supports submitting directly to pending_approval)"
+            >Save Draft</button>
+            <button class="button button-primary" :disabled="isSubmitting" @click="submitEvent">
+              {{ isSubmitting ? 'Submitting…' : 'Submit for Approval' }}
+            </button>
           </div>
         </div>
+        <p v-if="submitError" class="auth-error">{{ submitError }}</p>
       </aside>
     </section>
   </main>
@@ -272,12 +277,11 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { addApprovalEvent } from '@/stores/approvalEvents'
-import { addNotification } from '@/stores/notifications'
+import { createEventApi } from '@/api/events'
+import { getMySocietiesApi } from '@/api/societies'
 
 const route = useRoute()
 const router = useRouter()
-const eventsStorageKey = 'eventora_society_events_v2'
 
 const steps = [
   { key: 'basic',     label: 'Basic Info' },
@@ -286,95 +290,19 @@ const steps = [
   { key: 'review',    label: 'Review'     },
 ]
 
-const defaultEvents = [
-  {
-    id: 1,
-    title: 'Build Your First AI App',
-    category: 'Academic',
-    society: 'Computer Society UTM',
-    location: 'N28A Innovation Lab',
-    description:
-      'A practical evening workshop where students learn how to plan, prototype, and demo a simple AI-powered application.',
-    bannerImage: '',
-    posterImage: '',
-    eventDate: '12 Jun 2026',
-    startTime: '7:30 PM',
-    endTime: '9:30 PM',
-    registrationDeadline: '',
-    feeType: 'Paid',
-    feeAmount: 8,
-    waitlist: 'enabled',
-    contactName: '',
-    contactEmail: '',
-    instructions: '',
-    status: 'published',
-    registrations: 28,
-    checkedIn: 18,
-    avgRating: 4.5,
-    capacity: 40,
-  },
-  {
-    id: 2,
-    title: 'Hackathon 2026',
-    category: 'Academic',
-    society: 'Computer Society UTM',
-    location: 'FAB Lab',
-    description:
-      'A full-day hackathon for student teams to build software prototypes, receive mentor feedback, and present solutions.',
-    bannerImage: '',
-    posterImage: '',
-    eventDate: '5 Jul 2026',
-    startTime: '9:00 AM',
-    endTime: '6:00 PM',
-    registrationDeadline: '',
-    feeType: 'Paid',
-    feeAmount: 15,
-    waitlist: 'enabled',
-    contactName: '',
-    contactEmail: '',
-    instructions: '',
-    status: 'pending_approval',
-    registrations: 0,
-    checkedIn: 0,
-    avgRating: null,
-    capacity: 60,
-  },
-  {
-    id: 3,
-    title: 'Futsal Tournament',
-    category: 'Sports',
-    society: 'Sports Club UTM',
-    location: 'UTM Sports Hall',
-    description:
-      'A sports event for student teams to compete in an interfaculty futsal tournament at UTM Sports Hall.',
-    bannerImage: '',
-    posterImage: '',
-    eventDate: '28 Jun 2026',
-    startTime: '9:00 AM',
-    endTime: '1:00 PM',
-    registrationDeadline: '',
-    feeType: 'Free',
-    feeAmount: 0,
-    waitlist: 'enabled',
-    contactName: '',
-    contactEmail: '',
-    instructions: '',
-    status: 'published',
-    registrations: 40,
-    checkedIn: 32,
-    avgRating: 4.2,
-    capacity: 40,
-  },
-]
-
 const currentStep    = ref(0)
 const stepError      = ref('')
-const editingEventId = ref(null)
+const submitError    = ref('')
+const isSubmitting   = ref(false)
+
+const societyOptions   = ref([])
+const loadingSocieties = ref(true)
+const societyLoadError = ref('')
 
 const form = reactive({
   title:         '',
   category:      '',
-  society:       'Computer Society UTM',
+  societyId:     '',
   startDateTime: '',
   endDateTime:   '',
   location:      '',
@@ -383,7 +311,7 @@ const form = reactive({
   posterImage:   '',
   capacity:      null,
   deadline:      '',
-  feeType:       'Free',
+  feeType:       'free',
   feeAmount:     0,
   waitlist:      'enabled',
   contactName:   '',
@@ -413,37 +341,40 @@ const formattedDeadline = computed(() => {
 
 const previewImage = computed(() => form.posterImage || form.bannerImage)
 
-// ── onMounted: load event for editing ────────────────────────────────────────
+const categoryLabels = {
+  academic: 'Academic',
+  sports: 'Sports',
+  cultural: 'Cultural',
+  religious: 'Religious',
+}
+const categoryLabel = computed(() => categoryLabels[form.category] || '')
 
-onMounted(() => {
-  const editId = route.query.edit
-  if (!editId) return
+const societyName = computed(() => {
+  const match = societyOptions.value.find((s) => String(s.id) === String(form.societyId))
+  return match ? match.name : 'Society'
+})
 
-  const storedEvents = JSON.parse(localStorage.getItem(eventsStorageKey) || 'null')
-  const events = storedEvents || defaultEvents
-  const event  = events.find((ev) => String(ev.id) === String(editId))
-  if (!event) return
+// ── onMounted: load societies this organiser belongs to ─────────────────────
+// NOTE: editing an existing event (route.query.edit) isn't supported here -
+// the backend scaffold (EventController) only exposes POST /api/events and
+// GET /api/events/mine, there's no GET-by-id or PUT/PATCH yet. Once Christ's
+// real Event CRUD lands, edit support should be wired up against that.
 
-  editingEventId.value = event.id
-
-  form.title        = event.title        || ''
-  form.category     = event.category     || ''
-  form.society      = event.society      || 'Computer Society UTM'
-  form.location     = event.location     || ''
-  form.description  = event.description  || ''
-  form.bannerImage  = event.bannerImage  || ''
-  form.posterImage  = event.posterImage  || ''
-  form.capacity     = event.capacity     || null
-  form.deadline     = toDateTimeLocal(event.registrationDeadline)
-  form.feeType      = event.feeType      || 'Free'
-  form.feeAmount    = event.feeAmount    || 0
-  form.waitlist     = event.waitlist     || 'enabled'
-  form.contactName  = event.contactName  || ''
-  form.contactEmail = event.contactEmail || ''
-  form.instructions = event.instructions || ''
-
-  form.startDateTime = combineDateAndTime(event.eventDate, event.startTime)
-  form.endDateTime   = combineDateAndTime(event.eventDate, event.endTime)
+onMounted(async () => {
+  try {
+    const response = await getMySocietiesApi()
+    societyOptions.value = response.data.data
+    if (societyOptions.value.length === 1) {
+      form.societyId = societyOptions.value[0].id
+    }
+    if (societyOptions.value.length === 0) {
+      societyLoadError.value = "You're not a member of any society yet, so you can't create an event. Contact your faculty admin to be added to a society."
+    }
+  } catch (err) {
+    societyLoadError.value = err.response?.data?.error?.message || 'Failed to load your societies. Please try again later.'
+  } finally {
+    loadingSocieties.value = false
+  }
 })
 
 // ── Image upload handlers ─────────────────────────────────────────────────────
@@ -476,7 +407,7 @@ function nextStep() {
   stepError.value = ''
 
   if (currentStep.value === 0) {
-    if (!form.title || !form.category || !form.startDateTime || !form.endDateTime || !form.location || !form.description) {
+    if (!form.title || !form.category || !form.societyId || !form.startDateTime || !form.endDateTime || !form.location || !form.description) {
       stepError.value = 'Please fill in all required fields marked with *.'
       return
     }
@@ -498,108 +429,54 @@ function prevStep() {
 }
 
 // ── Submit ────────────────────────────────────────────────────────────────────
+// Posts straight to POST /api/events. Note this backend scaffold only
+// accepts a subset of the form's fields (see EventController.php) -
+// description, poster/banner images, contact info, and special
+// instructions are NOT persisted yet. They'll keep working in the UI but
+// silently won't be saved until Christ's real Event CRUD replaces this
+// scaffold and adds columns/handling for them.
 
-function submitEvent(action) {
-  const storedEvents = JSON.parse(localStorage.getItem(eventsStorageKey) || 'null')
-  const events       = storedEvents || [...defaultEvents]
-  const existingEvent = events.find((ev) => String(ev.id) === String(editingEventId.value))
-
-  const eventPayload = {
-    id:                   editingEventId.value || Date.now(),
-    title:                form.title,
-    category:             form.category,
-    society:              form.society,
-    location:             form.location,
-    description:          form.description,
-    bannerImage:          form.bannerImage,
-    posterImage:          form.posterImage,
-    eventDate:            form.startDateTime
-      ? new Date(form.startDateTime).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-      : '',
-    startTime:            form.startDateTime
-      ? new Date(form.startDateTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-      : '',
-    endTime:              form.endDateTime
-      ? new Date(form.endDateTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-      : '',
-    registrationDeadline: form.deadline,
-    feeType:              form.feeType,
-    feeAmount:            form.feeType === 'Paid' ? form.feeAmount : 0,
-    waitlist:             form.waitlist,
-    contactName:          form.contactName,
-    contactEmail:         form.contactEmail,
-    instructions:         form.instructions,
-    status:               action === 'draft' ? 'draft' : 'pending_approval',
-    registrations:        existingEvent?.registrations ?? 0,
-    checkedIn:            existingEvent?.checkedIn     ?? 0,
-    avgRating:            existingEvent?.avgRating     ?? null,
-    capacity:             form.capacity,
-  }
-
-  if (editingEventId.value) {
-    const updatedEvents = events.map((ev) =>
-      String(ev.id) === String(editingEventId.value) ? eventPayload : ev
-    )
-    localStorage.setItem(eventsStorageKey, JSON.stringify(updatedEvents))
-  } else {
-    events.unshift(eventPayload)
-    localStorage.setItem(eventsStorageKey, JSON.stringify(events))
-  }
-
-  if (action === 'submitted') {
-    addEventToApprovalQueue(eventPayload)
-    addSubmissionNotifications(eventPayload)
-  }
-
-  router.push({ path: '/organiser/dashboard', query: { eventSaved: action } })
+function datetimeLocalToMysql(value) {
+  // '2026-07-10T14:00' -> '2026-07-10 14:00:00'
+  if (!value) return ''
+  return `${value.replace('T', ' ')}:00`
 }
 
-function addSubmissionNotifications(event) {
-  addNotification({
-    audience:   'organiser',
-    type:       'Approval',
-    title:      'Event submitted for approval',
-    message:    `${event.title} has been submitted and is waiting for Faculty Admin review.`,
-    badgeClass: 'badge-yellow',
-  })
+async function submitEvent() {
+  submitError.value = ''
+  isSubmitting.value = true
 
-  addNotification({
-    audience:   'faculty_admin',
-    type:       'Approval',
-    title:      'New event pending approval',
-    message:    `${event.title} submitted by ${event.society} is waiting for review.`,
-    badgeClass: 'badge-yellow',
-  })
-}
+  try {
+    const response = await createEventApi({
+      society_id:      form.societyId,
+      title:           form.title,
+      venue:           form.location,
+      category:        form.category,
+      start_datetime:  datetimeLocalToMysql(form.startDateTime),
+      end_datetime:    datetimeLocalToMysql(form.endDateTime),
+      reg_deadline:    datetimeLocalToMysql(form.deadline),
+      capacity:        form.capacity,
+      fee_type:        form.feeType,
+      fee_amount:       form.feeType === 'paid' ? form.feeAmount : 0,
+    })
 
-function addEventToApprovalQueue(event) {
-  addApprovalEvent({
-    id:       event.id,
-    society:  event.society,
-    title:    event.title,
-    date:     event.eventDate,
-    category: event.category,
-    capacity: event.capacity,
-    details: {
-      submittedBy:  event.contactName || 'Organiser',
-      submittedAt:  'just now',
-      displayDate:  `${event.eventDate}, ${event.startTime} - ${event.endTime}`,
-      venue:        event.location || 'TBC',
-      deadline:     formattedDeadline.value,
-      price:        event.feeType === 'Paid' ? `RM ${Number(event.feeAmount || 0).toFixed(2)}` : 'Free',
-      image:        event.posterImage || event.bannerImage || '',
-      description:  event.description || 'Event description preview. Admin can open full details to review the complete submission.',
-    },
-  })
+    router.push({
+      path: '/organiser/dashboard',
+      query: { eventSaved: 'submitted', eventId: response.data.data.id },
+    })
+  } catch (err) {
+    const apiError = err.response?.data?.error
+    if (apiError?.fields && Object.keys(apiError.fields).length) {
+      submitError.value = Object.values(apiError.fields).join(' ')
+    } else {
+      submitError.value = apiError?.message || 'Failed to submit event. Please try again.'
+    }
+  } finally {
+    isSubmitting.value = false
+  }
 }
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
-
-function combineDateAndTime(dateText, timeText) {
-  if (!dateText || !timeText) return ''
-  const parsed = new Date(`${dateText} ${timeText}`)
-  return toDateTimeLocal(parsed)
-}
 
 function toDateTimeLocal(value) {
   if (!value) return ''
