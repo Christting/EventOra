@@ -30,6 +30,17 @@
             placeholder="Search by title or society..."
           />
         </div>
+
+        <div style="margin-top: 14px; display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 0.8rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">🔥 Highlight:</span>
+          <router-link 
+            to="/event/event-annual-tech-2026" 
+            class="badge badge-blue" 
+            style="text-decoration: none; font-size: 0.85rem; padding: 5px 10px; font-weight: 600; cursor: pointer;"
+          >
+            Annual Tech Symposium 2026 &rarr;
+          </router-link>
+        </div>
       </div>
 
       <aside class="hero-card">
@@ -38,7 +49,7 @@
       </aside>
     </section>
 
-    <section class="stats-grid">
+    <section class="stats-grid" style="margin-top: 40px;">
       <article class="stat-card">
         <span>Upcoming Events</span>
         <strong>{{ filteredEvents.length }}</strong>
@@ -151,9 +162,13 @@
             </strong>
           </div>
 
-          <button class="button button-primary">
+          <router-link 
+            :to="`/event/${event.id}`" 
+            class="button button-primary"
+            style="text-decoration: none; display: flex; align-items: center; justify-content: center; width: 100%; height: 42px; box-sizing: border-box;"
+          >
             View Registration
-          </button>
+          </router-link>
         </div>
       </article>
 
@@ -190,9 +205,8 @@ const unreadCount = computed(() =>
   ).length
 )
 
-onMounted(async () => {
-  notifications.value = await loadNotifications()
-})
+const events = ref([])
+const loadingEvents = ref(true)
 
 const basePublicEvents = [
   {
@@ -209,7 +223,7 @@ const basePublicEvents = [
     badgeClass: 'badge-blue',
   },
   {
-    id: 1,
+    id: 'event-ai-app-2026',
     title: 'Build Your First AI App',
     society: 'UTM Computing Society',
     category: 'academic',
@@ -222,7 +236,7 @@ const basePublicEvents = [
     badgeClass: 'badge-blue',
   },
   {
-    id: 2,
+    id: 'event-cultural-night-2026',
     title: 'Campus Cultural Night',
     society: 'Campus Culture Club',
     category: 'cultural',
@@ -235,7 +249,7 @@ const basePublicEvents = [
     badgeClass: 'badge-purple',
   },
   {
-    id: 3,
+    id: 'event-futsal-cup-2026',
     title: 'Interfaculty Futsal Cup',
     society: 'UTM Sports Club',
     category: 'sports',
@@ -249,50 +263,48 @@ const basePublicEvents = [
   },
 ]
 
-const events = ref(loadPublicEvents())
+onMounted(async () => {
+  notifications.value = await loadNotifications()
 
-function loadPublicEvents() {
-  const savedEvents = JSON.parse(localStorage.getItem(societyEventsStorageKey) || 'null')
+  try {
+    const res = await fetch('/mock/events.json')
+    if (res.ok) {
+      const rawEvents = await res.json()
+      const fetchedEvents = rawEvents.map(toPublicEvent)
 
-  if (!Array.isArray(savedEvents)) {
-    return basePublicEvents
+      const fetchedIds = new Set(fetchedEvents.map(e => String(e.id)))
+      const untouchedBase = basePublicEvents.filter(e => !fetchedIds.has(String(e.id)))
+
+      events.value = [...fetchedEvents, ...untouchedBase]
+    } else {
+      events.value = [...basePublicEvents]
+    }
+  } catch (err) {
+    console.error("Fetch mock error, using base events fallback", err)
+    events.value = [...basePublicEvents]
+  } finally {
+    loadingEvents.value = false
   }
-
-  const savedIds = new Set(savedEvents.map((event) => String(event.id)))
-  const savedPublishedEvents = savedEvents
-    .filter((event) => event.status === 'published')
-    .map(toPublicEvent)
-
-  const untouchedBaseEvents = basePublicEvents.filter((event) => !savedIds.has(String(event.id)))
-
-  return [...savedPublishedEvents, ...untouchedBaseEvents]
-}
+})
 
 function toPublicEvent(event) {
   const category = (event.category || 'academic').toLowerCase()
-  const registrations = event.registrations ?? event.confirmedCount ?? 0
+  const confirmed = event.confirmedCount ?? 0
   const capacity = event.capacity ?? 0
 
   return {
     id: event.id,
     title: event.title,
-    society: event.society || event.societyName || 'UTM Society',
+    society: event.societyName || event.society || 'UTM Society',
     category,
-    price: event.feeAmount ?? event.price ?? 0,
-    priceType:
-      (event.feeType || event.priceType || 'free').toLowerCase() === 'paid' ? 'paid' : 'free',
-    date: event.startAt || parsePublicDate(event.eventDate, event.startTime),
-    venue: event.location || event.venue || 'Venue not set',
-    seatsLeft: Math.max(capacity - registrations, 0),
+    price: event.price ?? 0,
+    priceType: event.priceType ?? 'free',
+    date: event.startAt || new Date().toISOString(),
+    venue: event.venue || 'Venue not set',
+    seatsLeft: Math.max(capacity - confirmed, 0),
     coverClass: event.coverClass || coverForCategory(category),
     badgeClass: event.badgeClass || badgeForCategory(category),
   }
-}
-
-function parsePublicDate(dateText, timeText) {
-  if (!dateText) return new Date().toISOString()
-  const date = new Date(`${dateText} ${timeText || ''}`)
-  return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString()
 }
 
 function coverForCategory(categoryName) {
@@ -314,14 +326,12 @@ function isInDateRange(eventDate, filter) {
   if (filter === 'week') {
     const nextWeek = new Date()
     nextWeek.setDate(today.getDate() + 7)
-
     return eventDay >= today && eventDay <= nextWeek
   }
 
   if (filter === 'month') {
     const nextMonth = new Date()
     nextMonth.setMonth(today.getMonth() + 1)
-
     return eventDay >= today && eventDay <= nextMonth
   }
 
@@ -330,48 +340,21 @@ function isInDateRange(eventDate, filter) {
 
 const filteredEvents = computed(() => {
   return events.value.filter((event) => {
-    if (
-      category.value !== 'all' &&
-      event.category !== category.value
-    )
-      return false
-
-    if (
-      price.value !== 'all' &&
-      event.priceType !== price.value
-    )
-      return false
-
-    if (
-      dateFilter.value !== 'all' &&
-      !isInDateRange(event.date, dateFilter.value)
-    )
-      return false
-
+    if (category.value !== 'all' && event.category !== category.value) return false
+    if (price.value !== 'all' && event.priceType !== price.value) return false
+    if (dateFilter.value !== 'all' && !isInDateRange(event.date, dateFilter.value)) return false
     if (
       keyword.value &&
       !event.title.toLowerCase().includes(keyword.value.toLowerCase()) &&
       !event.society.toLowerCase().includes(keyword.value.toLowerCase())
-    )
-      return false
+    ) return false
 
     return true
   })
 })
 
-const freeCount = computed(
-  () =>
-    filteredEvents.value.filter(
-      (e) => e.priceType === 'free'
-    ).length
-)
-
-const thisWeekCount = computed(
-  () =>
-    filteredEvents.value.filter((e) =>
-      isInDateRange(e.date, 'week')
-    ).length
-)
+const freeCount = computed(() => filteredEvents.value.filter((e) => e.priceType === 'free').length)
+const thisWeekCount = computed(() => filteredEvents.value.filter((e) => isInDateRange(e.date, 'week')).length)
 
 function clearFilters() {
   keyword.value = ''
@@ -381,7 +364,7 @@ function clearFilters() {
 }
 
 function formatDate(date) {
-  return new Date(date).toLocaleString('en-MY')
+  return new Date(date).toLocaleString('en-MY', { dateStyle: 'medium' })
 }
 
 function capitalize(text) {
@@ -428,5 +411,42 @@ function capitalize(text) {
   border-radius: 999px;
   background: var(--danger);
   border: 2px solid #fff;
+}
+
+.filter-bar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.filter-bar select {
+  padding: 8px 32px 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #cbd5e1);
+  background-color: var(--bg-surface, #ffffff);
+  color: var(--text, #334155);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  
+  appearance: none; 
+  background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2364748B%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E');
+  background-repeat: no-repeat;
+  background-position: right 12px top 50%;
+  background-size: 10px auto;
+  
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.filter-bar select:hover {
+  border-color: #94a3b8;
+}
+
+.filter-bar select:focus {
+  border-color: var(--primary, #2563eb);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
 }
 </style>

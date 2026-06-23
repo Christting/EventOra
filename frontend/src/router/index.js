@@ -53,6 +53,11 @@ const routes = [
     component: () => import('@/views/organiser/OrganiserEventDetailView.vue'),
     meta: { requiresAuth: true, role: 'organiser' },
   },
+  {
+    path: '/event/:id',
+    name: 'event-detail',
+    component: () => import('@/views/EventDetailView.vue'),
+  },
 ]
 
 const router = createRouter({
