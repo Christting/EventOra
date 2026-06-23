@@ -2,7 +2,7 @@
 import axios from 'axios'
 
 const apiClient = axios.create({
-  baseURL: 'http://localhost:8080/api', // after this need to put real de
+  baseURL: 'http://localhost:8000/api', // Slim's built-in dev server, see public/index.php
   headers: { 'Content-Type': 'application/json' },
 })
 

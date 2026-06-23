@@ -31,7 +31,7 @@
           v-for="ev in sortedApprovalEvents"
           :key="ev.id"
           class="approval-card"
-          :class="`approval-card-${ev.status}`"
+          :class="`approval-card-${cardStatusClass(ev.status)}`"
         >
           <div class="status-bar"></div>
 
@@ -40,15 +40,15 @@
               <div>
                 <div class="badge-row">
                   <span class="mini-badge category">{{ ev.category }}</span>
-                  <span :class="['mini-badge', ev.status]">
+                  <span :class="['mini-badge', cardStatusClass(ev.status)]">
                     {{ statusText(ev.status) }}
                   </span>
                 </div>
 
                 <h3>{{ ev.title }}</h3>
                 <p class="event-meta">
-                  {{ ev.society }} · Submitted by {{ eventExtra(ev).submittedBy }},
-                  {{ eventExtra(ev).submittedAt }}
+                  {{ ev.society_name }}
+                  <span v-if="ev.created_at"> · Submitted {{ formatDate(ev.created_at) }}</span>
                 </p>
               </div>
 
@@ -63,11 +63,11 @@
             <div class="info-grid">
               <div class="info-box">
                 <span>Date</span>
-                <strong>{{ eventExtra(ev).displayDate }}</strong>
+                <strong>{{ formatDate(ev.start_datetime) }}</strong>
               </div>
               <div class="info-box">
                 <span>Venue</span>
-                <strong>{{ eventExtra(ev).venue }}</strong>
+                <strong>{{ ev.venue || '—' }}</strong>
               </div>
               <div class="info-box">
                 <span>Capacity</span>
@@ -75,21 +75,31 @@
               </div>
               <div class="info-box">
                 <span>Price</span>
-                <strong>{{ eventExtra(ev).price }}</strong>
+                <strong>{{ priceLabel(ev) }}</strong>
               </div>
             </div>
 
-            <div v-if="ev.status === 'pending'" class="description-box">
-              {{ eventExtra(ev).description }}
+            <div v-if="ev.status === 'pending_approval'" class="description-box">
+              {{ ev.description || 'No description provided.' }}
             </div>
 
-            <div v-if="ev.status === 'pending'" class="action-row">
+            <div v-if="ev.status === 'pending_approval'" class="action-row">
               <div class="left-actions">
-                <button class="approve-btn" type="button" @click="approveEvent(ev)">
-                  ✓ Approve
+                <button
+                  class="approve-btn"
+                  type="button"
+                  :disabled="actionInProgress === ev.id"
+                  @click="approveEvent(ev)"
+                >
+                  {{ actionInProgress === ev.id ? 'Approving...' : '✓ Approve' }}
                 </button>
 
-                <button class="reject-btn" type="button" @click="openRejectModal(ev)">
+                <button
+                  class="reject-btn"
+                  type="button"
+                  :disabled="actionInProgress === ev.id"
+                  @click="openRejectModal(ev)"
+                >
                   Reject
                 </button>
               </div>
@@ -104,9 +114,9 @@
 
             <div v-else class="review-result">
               <div>
-                <strong>{{ ev.status === 'approved' ? 'Approved' : 'Rejected' }}</strong>
-                <p v-if="ev.status === 'approved'">
-                  This event has been approved and is ready to be published.
+                <strong>{{ ev.status === 'published' ? 'Approved' : 'Rejected' }}</strong>
+                <p v-if="ev.status === 'published'">
+                  This event has been approved and is now published.
                 </p>
                 <p v-else>Reason: {{ ev.reason || 'No reason provided.' }}</p>
               </div>
@@ -146,7 +156,7 @@
             <p class="eyebrow">Reject event</p>
             <h3>{{ selectedEvent?.title }}</h3>
             <span style="color:var(--muted);font-size:0.82rem;">
-              {{ selectedEvent?.society }}
+              {{ selectedEvent?.society_name }}
             </span>
           </div>
           <span class="badge badge-red">Reason required</span>
@@ -170,7 +180,9 @@
 
         <div class="modal-actions" style="margin-top:20px;">
           <button class="button button-ghost" @click="closeModal">Cancel</button>
-          <button class="button button-danger" @click="confirmReject">Confirm Rejection</button>
+          <button class="button button-danger" :disabled="isSubmittingReject" @click="confirmReject">
+            {{ isSubmittingReject ? 'Submitting...' : 'Confirm Rejection' }}
+          </button>
         </div>
       </div>
     </div>
@@ -183,54 +195,110 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import {
-  approvalEvents,
-  loadingApprovalEvents,
-  approvalLoadError,
-  loadApprovalEvents,
-  updateApprovalEvent,
-  getApprovalEventDetails,
-} from '@/stores/approvalEvents'
+import { getPendingEventsApi, approveEventApi, rejectEventApi } from '@/api/admin'
 
+// ===== Real backend data (replaces doc9's local mock store) =====
+const approvalEvents = ref([])
+const loadingEvents = ref(true)
+const loadError = ref('')
+
+// Tracks which row currently has an approve/reject request in flight,
+// so only that row's buttons disable - not the whole list.
+const actionInProgress = ref(null)
+
+async function loadPendingEvents() {
+  loadingEvents.value = true
+  loadError.value = ''
+
+  try {
+    const response = await getPendingEventsApi()
+    approvalEvents.value = response.data.data
+  } catch (err) {
+    loadError.value = err.response?.data?.error?.message || 'Failed to load approval events. Please try again later.'
+  } finally {
+    loadingEvents.value = false
+  }
+}
+
+onMounted(loadPendingEvents)
+
+// ===== Modal state =====
 const showModal = ref(false)
 const selectedEvent = ref(null)
 const rejectReason = ref('')
 const modalError = ref('')
+const isSubmittingReject = ref(false)
 const toast = ref({ message: '', type: 'success' })
 
-onMounted(() => {
-  loadApprovalEvents()
-})
-
-const loadingEvents = loadingApprovalEvents
-const loadError = approvalLoadError
-
+// ===== Derived data =====
+// IMPORTANT: backend's real status enum is draft/pending_approval/
+// published/completed/rejected/cancelled (PR1 Data Dictionary) - this is
+// DIFFERENT from doc9's mock store, which invented pending/approved/
+// rejected. The pendingCount and sort below use the REAL enum values.
 const pendingCount = computed(() =>
-  approvalEvents.value.filter((event) => event.status === 'pending').length
+  approvalEvents.value.filter((ev) => ev.status === 'pending_approval').length
 )
 
 const sortedApprovalEvents = computed(() => {
-  const order = { pending: 1, approved: 2, rejected: 3 }
-  return [...approvalEvents.value].sort((a, b) => order[a.status] - order[b.status])
+  const order = { pending_approval: 1, published: 2, rejected: 3 }
+  return [...approvalEvents.value].sort(
+    (a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9)
+  )
 })
 
-function eventExtra(event) {
-  return getApprovalEventDetails(event)
+// Maps the real backend status onto the 3 CSS variants the card styling
+// expects (pending / approved / rejected), since the actual enum has
+// more states (draft, completed, cancelled) that never reach this queue
+// anyway - the admin approval API only ever returns pending_approval,
+// published, or rejected events.
+function cardStatusClass(status) {
+  if (status === 'published') return 'approved'
+  if (status === 'rejected') return 'rejected'
+  return 'pending'
 }
 
 function statusText(status) {
-  if (status === 'approved') return 'Approved'
+  if (status === 'published') return 'Approved'
   if (status === 'rejected') return 'Rejected'
   return 'Pending Review'
 }
 
-function approveEvent(event) {
-  updateApprovalEvent(event.id, 'approved', '')
-  showToast('Event approved successfully.', 'success')
+// fee_type/fee_amount are real columns on the events table (PR1 Data
+// Dictionary) - no need for a fake "price" field like doc9's mock store
+// invented. fee_amount is DECIMAL(8,2) from MySQL, which PHP/JSON often
+// serialises as a string, so Number() guards against "0.00" rendering
+// as "RM 0.00".toFixed failing silently.
+function priceLabel(ev) {
+  if (ev.fee_type === 'free') return 'Free'
+  return `RM ${Number(ev.fee_amount ?? 0).toFixed(2)}`
 }
 
-function openRejectModal(event) {
-  selectedEvent.value = event
+function formatDate(datetime) {
+  if (!datetime) return '—'
+  return new Date(datetime).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+// ===== Actions (real API calls, not local store mutation) =====
+async function approveEvent(ev) {
+  actionInProgress.value = ev.id
+
+  try {
+    await approveEventApi(ev.id)
+    // Re-fetch rather than mutate ev.status locally - an approved event
+    // should disappear from this queue entirely once it's published,
+    // which a fresh load expresses more reliably than a local patch.
+    await loadPendingEvents()
+    showToast('Event approved successfully.', 'success')
+  } catch (err) {
+    const message = err.response?.data?.error?.message || 'Failed to approve event.'
+    showToast(message, 'danger')
+  } finally {
+    actionInProgress.value = null
+  }
+}
+
+function openRejectModal(ev) {
+  selectedEvent.value = ev
   rejectReason.value = ''
   modalError.value = ''
   showModal.value = true
@@ -243,20 +311,28 @@ function closeModal() {
   modalError.value = ''
 }
 
-function confirmReject() {
+async function confirmReject() {
   if (!rejectReason.value.trim()) {
     modalError.value = 'Please provide a rejection reason.'
     return
   }
 
-  updateApprovalEvent(selectedEvent.value.id, 'rejected', rejectReason.value.trim())
-  showToast('Event rejected successfully.', 'danger')
-  closeModal()
+  isSubmittingReject.value = true
+
+  try {
+    await rejectEventApi(selectedEvent.value.id, rejectReason.value.trim())
+    await loadPendingEvents()
+    showToast('Event rejected. Reason has been recorded.', 'danger')
+    closeModal()
+  } catch (err) {
+    modalError.value = err.response?.data?.error?.message || 'Failed to reject event.'
+  } finally {
+    isSubmittingReject.value = false
+  }
 }
 
 function showToast(message, type) {
   toast.value = { message, type }
-
   setTimeout(() => {
     toast.value = { message: '', type: 'success' }
   }, 2500)
@@ -468,6 +544,12 @@ function showToast(message, type) {
   border: 0;
   background: #10b981;
   color: white;
+}
+
+.approve-btn:disabled,
+.reject-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .reject-btn {
