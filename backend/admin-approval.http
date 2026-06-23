@@ -1,0 +1,88 @@
+### EventOra — Admin Approval API Test Requests
+@baseUrl = http://localhost:8000
+
+###############################################
+# STEP 0 — Get tokens first
+# Run these two, then copy each "token" value from the response
+# into the @adminToken / @organiserToken variables below.
+###############################################
+
+### 0a. Login as faculty_admin (id=2)
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "admin123"
+}
+
+### 0b. Login as organiser (id=1)
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "testuser@example.com",
+  "password": "password123"
+}
+
+###############################################
+# Paste the tokens you got from 0a / 0b here:
+###############################################
+@adminToken = eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjIsImVtYWlsIjoiYWRtaW5AZXhhbXBsZS5jb20iLCJyb2xlIjoiZmFjdWx0eV9hZG1pbiIsImlhdCI6MTc4MTk2MDIzMywiZXhwIjoxNzgyMDQ2NjMzfQ.ozY0qYJ_uccjc9CEVRTzW34-EOQBMbZdIIXXGzjwwoM
+@organiserToken = eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjEsImVtYWlsIjoidGVzdHVzZXJAZXhhbXBsZS5jb20iLCJyb2xlIjoib3JnYW5pc2VyIiwiaWF0IjoxNzgxOTYwNDQxLCJleHAiOjE3ODIwNDY4NDF9.UqPgyPdFt-GdBO5hVOnaGmYhvi3qEvwVKsICdiEMYu8
+
+###############################################
+# TEST 1 — GET pending events as faculty_admin
+# Expected: 200 OK, should return 2 events
+###############################################
+GET {{baseUrl}}/api/admin/events/pending
+Authorization: Bearer {{adminToken}}
+
+###############################################
+# TEST 2 — Approve event id=1 as faculty_admin
+# Expected: 200 OK, response includes reviewed_by.name
+###############################################
+POST {{baseUrl}}/api/admin/events/1/approve
+Authorization: Bearer {{adminToken}}
+
+###############################################
+# TEST 3 — Approve the SAME event id=1 again
+# Expected: 409 Conflict, error.code = "ALREADY_REVIEWED"
+###############################################
+POST {{baseUrl}}/api/admin/events/1/approve
+Authorization: Bearer {{adminToken}}
+
+###############################################
+# TEST 4 — Reject event id=2 WITHOUT a reason
+# Expected: 422 Unprocessable Entity
+###############################################
+POST {{baseUrl}}/api/admin/events/2/reject
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{}
+
+###############################################
+# TEST 4b — Reject event id=2 WITH a reason
+# Expected: 200 OK
+###############################################
+POST {{baseUrl}}/api/admin/events/2/reject
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "reason": "Venue is already double-booked for this date."
+}
+
+###############################################
+# TEST 5 — organiser tries admin endpoint (wrong role)
+# Expected: 403 Forbidden
+###############################################
+GET {{baseUrl}}/api/admin/events/pending
+Authorization: Bearer {{organiserToken}}
+
+###############################################
+# TEST 6 — no token at all
+# Expected: 401 Unauthorized
+###############################################
+GET {{baseUrl}}/api/admin/events/pending
