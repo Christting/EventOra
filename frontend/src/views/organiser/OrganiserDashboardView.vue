@@ -8,10 +8,7 @@
         title="Notifications"
       >
         🔔
-        <span
-          v-if="unreadCount > 0"
-          class="notification-dot"
-        ></span>
+        <span v-if="unreadCount > 0" class="notification-dot"></span>
       </router-link>
 
       <div>
@@ -44,6 +41,14 @@
       </aside>
 
       <div class="organiser-main">
+        <!-- Stats grid: sourced from backend GET /api/dashboard/organiser -->
+        <div v-if="dashboardLoading" class="dashboard-loading-banner">
+          Loading dashboard stats…
+        </div>
+        <div v-else-if="dashboardError" class="dashboard-error-banner">
+          {{ dashboardError }}
+        </div>
+
         <div class="od-stats-grid redesigned-stats">
           <article class="od-stat-card stat-accent-purple">
             <span>Total Events</span>
@@ -65,11 +70,13 @@
 
           <article class="od-stat-card stat-accent-yellow">
             <span>Avg. Feedback Rating</span>
-            <strong>{{ avgRating }} ★</strong>
-            <p>From {{ feedbackData.length }} responses</p>
+            <strong>{{ avgRatingDisplay }} <span v-if="avgRatingDisplay !== 'N/A'">★</span></strong>
+            <p v-if="avgRatingDisplay === 'N/A'">No feedback data yet</p>
+            <p v-else>From {{ feedbackData.length }} responses</p>
           </article>
         </div>
 
+        <!-- ===================== EVENTS TAB ===================== -->
         <section v-if="currentTab === 'events'" class="page-section organiser-panel">
           <div class="section-heading organiser-panel-heading">
             <div>
@@ -131,6 +138,7 @@
           </div>
         </section>
 
+        <!-- ===================== REGISTRATIONS TAB ===================== -->
         <section v-if="currentTab === 'registrations'" class="page-section organiser-panel">
           <div class="section-heading organiser-panel-heading">
             <div>
@@ -169,6 +177,7 @@
           </div>
         </section>
 
+        <!-- ===================== ATTENDANCE TAB ===================== -->
         <section v-if="currentTab === 'attendance'" class="page-section organiser-panel">
           <div class="section-heading organiser-panel-heading">
             <div>
@@ -207,13 +216,14 @@
           </div>
         </section>
 
+        <!-- ===================== FEEDBACK TAB ===================== -->
         <section v-if="currentTab === 'feedback'" class="page-section organiser-panel">
           <div class="section-heading organiser-panel-heading">
             <div>
               <p class="eyebrow">Feedback</p>
               <h2>Feedback & Ratings</h2>
               <p class="panel-subtitle">
-                Average Rating: <strong>{{ avgRating }} / 5</strong> from {{ feedbackData.length }} reviews
+                Average Rating: <strong>{{ localAvgRating }} / 5</strong> from {{ feedbackData.length }} reviews
               </p>
             </div>
             <button class="button button-primary" @click="exportCSV(feedbackData, 'feedback.csv')">
@@ -221,6 +231,11 @@
             </button>
           </div>
 
+          <!-- Chart.js draws onto this single canvas element. The
+               v-if on the parent <section> means this canvas only exists
+               in the DOM while this tab is active - that's exactly why
+               the watch(currentTab, ...) below has to redraw on every
+               re-entry into this tab, not just on first page load. -->
           <div class="chart-card">
             <canvas ref="feedbackChartCanvas"></canvas>
           </div>
@@ -253,8 +268,12 @@ import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { loadNotifications as loadStoredNotifications } from '@/stores/notifications'
+import { getOrganiserDashboardApi } from '@/api/dashboard'
 import { Chart, BarController, BarElement, CategoryScale, LinearScale, Tooltip } from 'chart.js'
 
+// Chart.js v4 is "tree-shakeable" - it does NOT auto-register every chart
+// type/scale like v2 did. If you skip this line, the bar chart silently
+// fails to render with no console error, which is a classic gotcha.
 Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip)
 
 const route = useRoute()
@@ -263,6 +282,9 @@ const authStore = useAuthStore()
 
 const eventsStorageKey = 'eventora_society_events_v2'
 
+// ===== Mock / local data (registrations, attendance, feedback) =====
+// These three lists stay client-side mocks for now - there's no
+// corresponding backend endpoint wired up yet for this dashboard view.
 const registrationsList = [
   { name: 'Aina Rahman', email: 'aina@utm.my', status: 'confirmed', ticketCode: 'EVT-9F4K-2Q8M-X7P1' },
   { name: 'Nurul Iman', email: 'nurul@utm.my', status: 'confirmed', ticketCode: 'EVT-3H7J-1L9N-P5R2' },
@@ -280,8 +302,23 @@ const feedbackData = [
   { rating: 5, comment: 'Very inspiring' },
 ]
 
+// LOCAL average of the 3 hardcoded feedbackData entries, purely for the
+// feedback tab's own "Average Rating: X / 5" line. Deliberately NOT
+// reused as `avgRating`/`avgRatingDisplay` - those are the backend's
+// average_rating (currently always null until the feedback table
+// exists - see DashboardController TODO). Keeping them separate avoids
+// the naming collision bug from the original backend-skeleton version.
+const localAvgRating = computed(() => {
+  if (!feedbackData.length) return '0.0'
+  const sum = feedbackData.reduce((total, f) => total + f.rating, 0)
+  return (sum / feedbackData.length).toFixed(1)
+})
+
+// Buckets feedbackData into how many people gave 1 star, 2 stars, etc.
+// Independent of the backend - reads the same local feedbackData array
+// as localAvgRating above.
 const ratingDistribution = computed(() => {
-  const counts = [0, 0, 0, 0, 0]
+  const counts = [0, 0, 0, 0, 0] // index 0 = 1 star ... index 4 = 5 stars
   feedbackData.forEach((f) => {
     if (f.rating >= 1 && f.rating <= 5) counts[f.rating - 1] += 1
   })
@@ -292,8 +329,13 @@ const feedbackChartCanvas = ref(null)
 let feedbackChartInstance = null
 
 function renderFeedbackChart() {
+  // Guard: the canvas only exists in the DOM while the Feedback tab is
+  // active (because of v-if="currentTab === 'feedback'" on the <section>).
   if (!feedbackChartCanvas.value) return
 
+  // Destroy any previous instance before redrawing - Chart.js doesn't
+  // auto-clean-up, and skipping this causes overlapping ghost charts
+  // every time the organiser revisits this tab.
   if (feedbackChartInstance) {
     feedbackChartInstance.destroy()
   }
@@ -337,6 +379,10 @@ const tabs = [
 const currentTab = ref('events')
 const notifications = ref([])
 
+// Must come after currentTab's declaration (const isn't hoisted the way
+// function declarations are). The canvas is destroyed/recreated by
+// v-if on every tab switch, so the chart has to be redrawn every time
+// "feedback" becomes active again, not just once on page load.
 watch(currentTab, async (tab) => {
   if (tab === 'feedback') {
     await nextTick()
@@ -344,6 +390,7 @@ watch(currentTab, async (tab) => {
   }
 })
 
+// ===== Events list (mock JSON + localStorage merge, from main UI) =====
 const societyEvents = ref([])
 
 function saveEvents() {
@@ -364,99 +411,6 @@ function statusLabel(status) {
 
 function registrationPercent(event) {
   return event.capacity ? Math.round((event.registrations / event.capacity) * 100) : 0
-}
-
-const totalEvents = computed(() => societyEvents.value.length)
-const publishedCount = computed(() => societyEvents.value.filter((ev) => ev.status === 'published').length)
-const pendingCount = computed(() => societyEvents.value.filter((ev) => ev.status === 'pending_approval').length)
-const totalRegistrations = computed(() => societyEvents.value.reduce((sum, ev) => sum + ev.registrations, 0))
-const totalCheckedIn = computed(() => societyEvents.value.reduce((sum, ev) => sum + ev.checkedIn, 0))
-const attendanceRate = computed(() =>
-  totalRegistrations.value ? Math.round((totalCheckedIn.value / totalRegistrations.value) * 100) : 0
-)
-const avgRating = computed(() => {
-  const ratings = societyEvents.value.filter((ev) => ev.avgRating).map((ev) => ev.avgRating)
-  if (!ratings.length) return '0.0'
-  return (ratings.reduce((sum, r) => sum + r, 0) / ratings.length).toFixed(1)
-})
-
-const confirmedRegistrations = computed(
-  () => registrationsList.filter((r) => r.status === 'confirmed').length
-)
-const attendanceTabRate = computed(() =>
-  confirmedRegistrations.value ? Math.round((attendanceList.length / confirmedRegistrations.value) * 100) : 0
-)
-
-const unreadCount = computed(() =>
-  notifications.value.filter(
-    (notification) => notification.audience === authStore.role && notification.unread
-  ).length
-)
-
-function escapeCsv(value) {
-  const text = String(value ?? '')
-  return `"${text.replaceAll('"', '""')}"`
-}
-
-function exportCSV(rows, filename) {
-  if (!rows.length) return
-
-  const headers = Object.keys(rows[0])
-  const csv = [
-    headers.map(escapeCsv).join(','),
-    ...rows.map((row) => headers.map((header) => escapeCsv(row[header])).join(',')),
-  ].join('\n')
-
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(blob)
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(a.href)
-}
-
-const toast = reactive({ visible: false, title: '', message: '' })
-
-function showCreateEventToast() {
-  const eventSaved = route.query.eventSaved
-  const eventAction = route.query.eventAction
-  if (!eventSaved && !eventAction) return
-
-  if (eventSaved === 'draft') {
-    toast.title = 'Draft saved successfully'
-    toast.message = 'The event is saved as a draft and can be edited before submission.'
-  }
-
-  if (eventSaved === 'submitted') {
-    toast.title = 'Event submitted for approval'
-    toast.message = 'Faculty Admin will review the event before it appears in the public list.'
-  }
-
-  if (eventAction === 'submitted') {
-    toast.title = 'Event submitted for approval'
-    toast.message = 'The event moved from draft to pending approval for Faculty Admin review.'
-  }
-
-  if (eventAction === 'deleted') {
-    toast.title = 'Draft deleted'
-    toast.message = 'The draft event has been removed from the organiser workspace.'
-  }
-
-  if (eventAction === 'submission_cancelled') {
-    toast.title = 'Submission cancelled'
-    toast.message = 'The event is back to draft and can be edited before resubmission.'
-  }
-
-  if (eventAction === 'cancelled') {
-    toast.title = 'Event cancelled'
-    toast.message = 'The published event has been cancelled and hidden from student registration.'
-  }
-
-  toast.visible = true
-  setTimeout(() => {
-    toast.visible = false
-    router.replace({ path: route.path })
-  }, 3500)
 }
 
 function normaliseEvent(rawEvent) {
@@ -541,9 +495,126 @@ async function loadNotifications() {
   }
 }
 
+// ===== Stats (sourced from GET /api/dashboard/organiser) =====
+const dashboardStats = ref(null)
+const dashboardLoading = ref(true)
+const dashboardError = ref('')
+
+async function loadDashboardStats() {
+  dashboardLoading.value = true
+  dashboardError.value = ''
+
+  try {
+    const response = await getOrganiserDashboardApi()
+    dashboardStats.value = response.data.data
+  } catch (err) {
+    dashboardError.value = err.response?.data?.error?.message || 'Failed to load dashboard stats.'
+  } finally {
+    dashboardLoading.value = false
+  }
+}
+
+const totalEvents = computed(() => dashboardStats.value?.total_events ?? 0)
+const publishedCount = computed(() => dashboardStats.value?.event_totals?.published ?? 0)
+const pendingCount = computed(() => dashboardStats.value?.event_totals?.pending_approval ?? 0)
+const totalRegistrations = computed(() => dashboardStats.value?.total_registrations ?? 0)
+const totalCheckedIn = computed(() => dashboardStats.value?.attendance?.checked_in ?? 0)
+const attendanceRate = computed(() => dashboardStats.value?.attendance?.rate_percent ?? 0)
+
+// average_rating is always null until the feedback table exists (see
+// DashboardController TODO). This is the BACKEND number, intentionally
+// separate from localAvgRating above which is the feedback tab's own
+// local 3-entry average.
+const avgRatingDisplay = computed(() => {
+  const rating = dashboardStats.value?.average_rating
+  return rating === null || rating === undefined ? 'N/A' : rating.toFixed(1)
+})
+
+const confirmedRegistrations = computed(
+  () => registrationsList.filter((r) => r.status === 'confirmed').length
+)
+const attendanceTabRate = computed(() =>
+  confirmedRegistrations.value ? Math.round((attendanceList.length / confirmedRegistrations.value) * 100) : 0
+)
+
+const unreadCount = computed(() =>
+  notifications.value.filter(
+    (notification) => notification.audience === authStore.role && notification.unread
+  ).length
+)
+
+// ===== CSV export =====
+function escapeCsv(value) {
+  const text = String(value ?? '')
+  return `"${text.replaceAll('"', '""')}"`
+}
+
+function exportCSV(rows, filename) {
+  if (!rows.length) return
+
+  const headers = Object.keys(rows[0])
+  const csv = [
+    headers.map(escapeCsv).join(','),
+    ...rows.map((row) => headers.map((header) => escapeCsv(row[header])).join(',')),
+  ].join('\n')
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
+
+// ===== Toast from query params (after teammate's create-event flow redirects back) =====
+const toast = reactive({ visible: false, title: '', message: '' })
+
+function showCreateEventToast() {
+  const eventSaved = route.query.eventSaved
+  const eventAction = route.query.eventAction
+  if (!eventSaved && !eventAction) return
+
+  if (eventSaved === 'draft') {
+    toast.title = 'Draft saved successfully'
+    toast.message = 'The event is saved as a draft and can be edited before submission.'
+  }
+
+  if (eventSaved === 'submitted') {
+    toast.title = 'Event submitted for approval'
+    toast.message = 'Faculty Admin will review the event before it appears in the public list.'
+  }
+
+  if (eventAction === 'submitted') {
+    toast.title = 'Event submitted for approval'
+    toast.message = 'The event moved from draft to pending approval for Faculty Admin review.'
+  }
+
+  if (eventAction === 'deleted') {
+    toast.title = 'Draft deleted'
+    toast.message = 'The draft event has been removed from the organiser workspace.'
+  }
+
+  if (eventAction === 'submission_cancelled') {
+    toast.title = 'Submission cancelled'
+    toast.message = 'The event is back to draft and can be edited before resubmission.'
+  }
+
+  if (eventAction === 'cancelled') {
+    toast.title = 'Event cancelled'
+    toast.message = 'The published event has been cancelled and hidden from student registration.'
+  }
+
+  toast.visible = true
+  setTimeout(() => {
+    toast.visible = false
+    router.replace({ path: route.path })
+  }, 3500)
+}
+
 onMounted(async () => {
   await loadSocietyEvents()
   loadNotifications()
+  loadDashboardStats()
   showCreateEventToast()
 })
 </script>
@@ -696,6 +767,27 @@ onMounted(async () => {
 
 .organiser-main {
   min-width: 0;
+}
+
+.dashboard-loading-banner,
+.dashboard-error-banner {
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.dashboard-loading-banner {
+  background: #eef2ff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+}
+
+.dashboard-error-banner {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
 }
 
 .redesigned-stats {
