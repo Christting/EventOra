@@ -37,10 +37,15 @@ class AdminController
                 e.id,
                 e.status,
                 e.title,
+                e.description,
+                e.venue,
                 e.category,
                 e.capacity,
+                e.fee_type,
+                e.fee_amount,
                 e.start_datetime,
                 e.end_datetime,
+                e.created_at,
                 e.created_at AS submitted_at,
                 s.id AS society_id,
                 s.name AS society_name
@@ -53,6 +58,42 @@ class AdminController
         $pendingEvents = $stmt->fetchAll();
 
         return $this->successResponse($response, $pendingEvents, null, 200);
+    }
+
+    public function showEvent(Request $request, Response $response, array $args): Response
+    {
+        $db = Database::getConnection();
+        $stmt = $db->prepare(
+            'SELECT
+                e.id,
+                e.status,
+                e.title,
+                e.description,
+                e.venue,
+                e.category,
+                e.capacity,
+                e.fee_type,
+                e.fee_amount,
+                e.start_datetime,
+                e.end_datetime,
+                e.reg_deadline,
+                e.created_at,
+                s.id AS society_id,
+                s.name AS society_name,
+                u.name AS created_by_name
+             FROM events e
+             JOIN societies s ON s.id = e.society_id
+             JOIN users u ON u.id = e.created_by
+             WHERE e.id = :id'
+        );
+        $stmt->execute(['id' => (int) $args['id']]);
+        $event = $stmt->fetch();
+
+        if (!$event) {
+            return $this->errorResponse($response, 'EVENT_NOT_FOUND', 'Event not found', [], 404);
+        }
+
+        return $this->successResponse($response, $event, null, 200);
     }
 
     // POST /api/admin/events/{id}/approve

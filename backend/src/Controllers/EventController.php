@@ -9,26 +9,17 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use PDOException;
 
-// MINIMAL SCAFFOLD - NOT the real Event CRUD owned by Christ (Backend &
-// API Lead - Organiser Core, per PR1 Team Role Split). This only exists
-// so the organiser-side flow has a way to produce real pending_approval
-// events for the Admin Approval Queue to actually review.
-//
-// Deliberately missing: draft status, the submit-for-approval step,
-// poster upload, edit/cancel, and several optional PR1 fields
-// (description, contact_person, contact_email, special_instructions).
-// Christ's real implementation should replace or absorb this.
+// Organiser event workflow endpoints. This keeps the create/edit/detail
+// flow connected to the same events table used by Faculty Admin approval.
 class EventController
 {
     private array $allowedCategories = ['academic', 'sports', 'cultural', 'religious'];
     private array $allowedFeeTypes = ['free', 'paid'];
+    private array $editableStatuses = ['draft', 'rejected', 'pending_approval'];
 
     // POST /api/events
-    // Organiser-only. Creates an event directly in pending_approval status
-    // (skips draft, since there's no separate "submit" step in this
-    // scaffold). created_by is taken from the JWT, never from the
-    // request body, so an organiser can't create events under another
-    // user's name.
+    // Organiser-only. Creates an event directly in pending_approval status.
+    // created_by is taken from the JWT, never from the request body.
     public function create(Request $request, Response $response): Response
     {
         $authUser = $request->getAttribute('user');
@@ -43,9 +34,14 @@ class EventController
         $startDatetime = $data['start_datetime'] ?? '';
         $endDatetime = $data['end_datetime'] ?? '';
         $regDeadline = $data['reg_deadline'] ?? '';
+        $description = trim($data['description'] ?? '');
         $capacity = isset($data['capacity']) ? (int) $data['capacity'] : null;
         $feeType = $data['fee_type'] ?? '';
         $feeAmount = isset($data['fee_amount']) ? (float) $data['fee_amount'] : 0.00;
+        $waitlistEnabled = isset($data['waitlist_enabled']) ? (int) (bool) $data['waitlist_enabled'] : 1;
+        $contactPerson = trim($data['contact_person'] ?? '') ?: null;
+        $contactEmail = trim($data['contact_email'] ?? '') ?: null;
+        $specialInstructions = trim($data['special_instructions'] ?? '') ?: null;
 
         $errors = [];
 
@@ -77,26 +73,24 @@ class EventController
 
         $db = Database::getConnection();
 
-        // Confirm the society actually exists before inserting - cheaper
-        // and clearer than letting the foreign key constraint fail with
-        // a generic DB error.
-        $checkStmt = $db->prepare('SELECT id FROM societies WHERE id = :id');
-        $checkStmt->execute(['id' => $societyId]);
-        if (!$checkStmt->fetch()) {
-            return $this->errorResponse($response, 'SOCIETY_NOT_FOUND', 'The specified society does not exist', [], 404);
+        if (!$this->organiserBelongsToSociety($db, $createdBy, $societyId)) {
+            return $this->errorResponse($response, 'SOCIETY_NOT_FOUND', 'The specified society does not exist for this organiser', [], 404);
         }
 
         try {
             $stmt = $db->prepare(
-                'INSERT INTO events (society_id, created_by, title, venue, category,
-                    start_datetime, end_datetime, reg_deadline, capacity, fee_type, fee_amount, status)
-                 VALUES (:society_id, :created_by, :title, :venue, :category,
-                    :start_datetime, :end_datetime, :reg_deadline, :capacity, :fee_type, :fee_amount, :status)'
+                'INSERT INTO events (society_id, created_by, title, description, venue, category,
+                    start_datetime, end_datetime, reg_deadline, capacity, fee_type, fee_amount,
+                    waitlist_enabled, contact_person, contact_email, special_instructions, status)
+                 VALUES (:society_id, :created_by, :title, :description, :venue, :category,
+                    :start_datetime, :end_datetime, :reg_deadline, :capacity, :fee_type,
+                    :fee_amount, :waitlist_enabled, :contact_person, :contact_email, :special_instructions, :status)'
             );
             $stmt->execute([
                 'society_id' => $societyId,
                 'created_by' => $createdBy,
                 'title' => $title,
+                'description' => $description,
                 'venue' => $venue,
                 'category' => $category,
                 'start_datetime' => $startDatetime,
@@ -105,7 +99,10 @@ class EventController
                 'capacity' => $capacity,
                 'fee_type' => $feeType,
                 'fee_amount' => $feeAmount,
-                // Always pending_approval - this scaffold has no draft state.
+                'waitlist_enabled' => $waitlistEnabled,
+                'contact_person' => $contactPerson,
+                'contact_email' => $contactEmail,
+                'special_instructions' => $specialInstructions,
                 'status' => 'pending_approval',
             ]);
 
@@ -132,12 +129,173 @@ class EventController
 
         $db = Database::getConnection();
         $stmt = $db->prepare(
-            'SELECT id, title, venue, category, start_datetime, capacity, status
-             FROM events WHERE created_by = :created_by ORDER BY created_at DESC'
+            'SELECT e.id, e.title, e.description, e.venue, e.category, e.start_datetime, e.end_datetime,
+                e.reg_deadline, e.capacity, e.fee_type, e.fee_amount, e.waitlist_enabled, e.status,
+                e.created_at, e.updated_at, s.name AS society_name,
+                (SELECT COUNT(*) FROM registrations r WHERE r.event_id = e.id AND r.status <> "cancelled") AS registrations
+             FROM events e
+             JOIN societies s ON s.id = e.society_id
+             WHERE e.created_by = :created_by
+             ORDER BY e.created_at DESC'
         );
         $stmt->execute(['created_by' => $createdBy]);
 
-        return $this->successResponse($response, $stmt->fetchAll(), null, 200);
+        return $this->successResponse($response, array_map([$this, 'formatEventForFrontend'], $stmt->fetchAll()), null, 200);
+    }
+
+    public function show(Request $request, Response $response, array $args): Response
+    {
+        $event = $this->findOwnedEvent($request, (int) $args['id']);
+        if ($event === null) {
+            return $this->errorResponse($response, 'EVENT_NOT_FOUND', 'Event not found', [], 404);
+        }
+
+        return $this->successResponse($response, $this->formatEventForFrontend($event), null, 200);
+    }
+
+    public function update(Request $request, Response $response, array $args): Response
+    {
+        $eventId = (int) $args['id'];
+        $event = $this->findOwnedEvent($request, $eventId);
+        if ($event === null) {
+            return $this->errorResponse($response, 'EVENT_NOT_FOUND', 'Event not found', [], 404);
+        }
+        if (!in_array($event['status'], $this->editableStatuses, true)) {
+            return $this->errorResponse($response, 'INVALID_STATE_TRANSITION', 'This event cannot be edited in its current status', [], 400);
+        }
+
+        $data = $request->getParsedBody();
+        $db = Database::getConnection();
+        $stmt = $db->prepare(
+            'UPDATE events SET title = :title, description = :description, venue = :venue, category = :category,
+                start_datetime = :start_datetime, end_datetime = :end_datetime, reg_deadline = :reg_deadline,
+                capacity = :capacity, fee_type = :fee_type, fee_amount = :fee_amount,
+                waitlist_enabled = :waitlist_enabled, contact_person = :contact_person,
+                contact_email = :contact_email, special_instructions = :special_instructions,
+                status = :status
+             WHERE id = :id'
+        );
+        $stmt->execute([
+            'id' => $eventId,
+            'title' => trim($data['title'] ?? $event['title']),
+            'description' => trim($data['description'] ?? $event['description']),
+            'venue' => trim($data['venue'] ?? $event['venue']),
+            'category' => $data['category'] ?? $event['category'],
+            'start_datetime' => $data['start_datetime'] ?? $event['start_datetime'],
+            'end_datetime' => $data['end_datetime'] ?? $event['end_datetime'],
+            'reg_deadline' => $data['reg_deadline'] ?? $event['reg_deadline'],
+            'capacity' => isset($data['capacity']) ? (int) $data['capacity'] : (int) $event['capacity'],
+            'fee_type' => $data['fee_type'] ?? $event['fee_type'],
+            'fee_amount' => isset($data['fee_amount']) ? (float) $data['fee_amount'] : (float) $event['fee_amount'],
+            'waitlist_enabled' => isset($data['waitlist_enabled']) ? (int) (bool) $data['waitlist_enabled'] : (int) $event['waitlist_enabled'],
+            'contact_person' => trim($data['contact_person'] ?? $event['contact_person']) ?: null,
+            'contact_email' => trim($data['contact_email'] ?? $event['contact_email']) ?: null,
+            'special_instructions' => trim($data['special_instructions'] ?? $event['special_instructions']) ?: null,
+            'status' => 'pending_approval',
+        ]);
+
+        return $this->successResponse($response, ['id' => $eventId, 'status' => 'pending_approval'], 'Event updated and submitted for approval', 200);
+    }
+
+    public function submitForApproval(Request $request, Response $response, array $args): Response
+    {
+        return $this->changeStatus($request, $response, (int) $args['id'], ['draft', 'rejected'], 'pending_approval', 'Event submitted for approval');
+    }
+
+    public function deleteDraft(Request $request, Response $response, array $args): Response
+    {
+        $event = $this->findOwnedEvent($request, (int) $args['id']);
+        if ($event === null) {
+            return $this->errorResponse($response, 'EVENT_NOT_FOUND', 'Event not found', [], 404);
+        }
+        if (!in_array($event['status'], ['draft', 'rejected'], true)) {
+            return $this->errorResponse($response, 'INVALID_STATE_TRANSITION', 'Only draft or rejected events can be deleted', [], 400);
+        }
+
+        $db = Database::getConnection();
+        $stmt = $db->prepare('DELETE FROM events WHERE id = :id');
+        $stmt->execute(['id' => (int) $args['id']]);
+
+        return $this->successResponse($response, null, 'Event deleted', 200);
+    }
+
+    public function cancelSubmission(Request $request, Response $response, array $args): Response
+    {
+        return $this->changeStatus($request, $response, (int) $args['id'], ['pending_approval'], 'draft', 'Submission cancelled');
+    }
+
+    public function cancel(Request $request, Response $response, array $args): Response
+    {
+        return $this->changeStatus($request, $response, (int) $args['id'], ['published'], 'cancelled', 'Event cancelled');
+    }
+
+    private function changeStatus(Request $request, Response $response, int $eventId, array $fromStatuses, string $toStatus, string $message): Response
+    {
+        $event = $this->findOwnedEvent($request, $eventId);
+        if ($event === null) {
+            return $this->errorResponse($response, 'EVENT_NOT_FOUND', 'Event not found', [], 404);
+        }
+        if (!in_array($event['status'], $fromStatuses, true)) {
+            return $this->errorResponse($response, 'INVALID_STATE_TRANSITION', "Event with status '{$event['status']}' cannot perform this action", [], 400);
+        }
+
+        $db = Database::getConnection();
+        $stmt = $db->prepare('UPDATE events SET status = :status WHERE id = :id');
+        $stmt->execute(['status' => $toStatus, 'id' => $eventId]);
+
+        return $this->successResponse($response, ['id' => $eventId, 'status' => $toStatus], $message, 200);
+    }
+
+    private function organiserBelongsToSociety(\PDO $db, int $organiserId, int $societyId): bool
+    {
+        $stmt = $db->prepare('SELECT id FROM society_members WHERE user_id = :user_id AND society_id = :society_id');
+        $stmt->execute(['user_id' => $organiserId, 'society_id' => $societyId]);
+
+        return (bool) $stmt->fetch();
+    }
+
+    private function findOwnedEvent(Request $request, int $eventId): ?array
+    {
+        $authUser = $request->getAttribute('user');
+        $createdBy = (int) $authUser['sub'];
+
+        $db = Database::getConnection();
+        $stmt = $db->prepare(
+            'SELECT e.*, s.name AS society_name,
+                (SELECT COUNT(*) FROM registrations r WHERE r.event_id = e.id AND r.status <> "cancelled") AS registrations
+             FROM events e
+             JOIN societies s ON s.id = e.society_id
+             WHERE e.id = :id AND e.created_by = :created_by'
+        );
+        $stmt->execute(['id' => $eventId, 'created_by' => $createdBy]);
+        $event = $stmt->fetch();
+
+        return $event ?: null;
+    }
+
+    private function formatEventForFrontend(array $event): array
+    {
+        return [
+            'id' => (int) $event['id'],
+            'title' => $event['title'],
+            'description' => $event['description'] ?? '',
+            'category' => $event['category'],
+            'society' => $event['society_name'] ?? null,
+            'society_name' => $event['society_name'] ?? null,
+            'location' => $event['venue'],
+            'venue' => $event['venue'],
+            'startAt' => $event['start_datetime'],
+            'endAt' => $event['end_datetime'],
+            'registrationDeadline' => $event['reg_deadline'],
+            'capacity' => (int) $event['capacity'],
+            'feeType' => $event['fee_type'],
+            'feeAmount' => (float) $event['fee_amount'],
+            'waitlistEnabled' => (bool) $event['waitlist_enabled'],
+            'status' => $event['status'],
+            'registrations' => (int) ($event['registrations'] ?? 0),
+            'createdAt' => $event['created_at'] ?? null,
+            'updatedAt' => $event['updated_at'] ?? null,
+        ];
     }
 
     private function successResponse(Response $response, mixed $data, ?string $message, int $status): Response

@@ -8,6 +8,7 @@ use App\Controllers\AuthController;
 use App\Controllers\AdminController;
 use App\Controllers\DashboardController;
 use App\Controllers\EventController;
+use App\Controllers\SocietyController;
 use App\Middleware\JwtMiddleware;
 use App\Middleware\RoleMiddleware;
 
@@ -103,6 +104,7 @@ $app->group('/api/admin/events', function ($group) {
     $controller = new AdminController();
  
     $group->get('/pending', [$controller, 'listPendingEvents']);
+    $group->get('/{id}', [$controller, 'showEvent']);
     $group->post('/{id}/approve', [$controller, 'approveEvent']);
     $group->post('/{id}/reject', [$controller, 'rejectEvent']);
 })
@@ -119,12 +121,22 @@ $app->get('/api/dashboard/organiser', [new DashboardController(), 'organiserDash
     ->add(new RoleMiddleware(['organiser']))
     ->add(new JwtMiddleware());
 
+$app->get('/api/societies/mine', [new SocietyController(), 'listMine'])
+    ->add(new RoleMiddleware(['organiser']))
+    ->add(new JwtMiddleware());
+
 // MINIMAL SCAFFOLD - see EventController.php for context. Organiser-only,
 // lets the Admin Approval Queue have real events to review.
 $app->group('/api/events', function ($group) {
     $controller = new EventController();
     $group->post('', [$controller, 'create']);
     $group->get('/mine', [$controller, 'listMine']);
+    $group->get('/{id}', [$controller, 'show']);
+    $group->put('/{id}', [$controller, 'update']);
+    $group->post('/{id}/submit', [$controller, 'submitForApproval']);
+    $group->delete('/{id}', [$controller, 'deleteDraft']);
+    $group->patch('/{id}/cancel-submission', [$controller, 'cancelSubmission']);
+    $group->patch('/{id}/cancel', [$controller, 'cancel']);
 })
     ->add(new RoleMiddleware(['organiser']))
     ->add(new JwtMiddleware());
