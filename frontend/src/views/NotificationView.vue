@@ -16,8 +16,8 @@
           <strong>{{ roleLabel }}</strong>
         </p>
 
-        <button class="button button-secondary" @click="markAllAsRead">
-          Mark all as read
+        <button class="button button-secondary" :disabled="updating" @click="markAllAsRead">
+          {{ updating ? 'Updating...' : 'Mark all as read' }}
         </button>
       </div>
 
@@ -71,6 +71,7 @@
             <button
               v-if="notification.unread"
               class="button button-secondary"
+              :disabled="updating"
               @click="markAsRead(notification.id)"
             >
               Mark as read
@@ -85,11 +86,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import {
   loadNotifications,
-  saveNotifications,
+  markAllNotificationsAsRead,
+  markNotificationAsRead,
 } from '@/stores/notifications'
 
 const authStore = useAuthStore()
@@ -97,6 +99,7 @@ const authStore = useAuthStore()
 const notifications = ref([])
 const loading = ref(true)
 const loadError = ref('')
+const updating = ref(false)
 
 const currentRole = computed(() => authStore.role || 'attendee')
 
@@ -114,7 +117,9 @@ const unreadCount = computed(() =>
   visibleNotifications.value.filter((notification) => notification.unread).length
 )
 
-onMounted(async () => {
+async function refreshNotifications() {
+  loadError.value = ''
+
   try {
     notifications.value = await loadNotifications()
   } catch (error) {
@@ -122,30 +127,41 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
-})
-
-watch(
-  notifications,
-  () => {
-    if (!loading.value && !loadError.value) {
-      saveNotifications(notifications.value)
-    }
-  },
-  { deep: true }
-)
-
-function markAsRead(id) {
-  notifications.value = notifications.value.map((notification) =>
-    notification.id === id ? { ...notification, unread: false } : notification
-  )
 }
 
-function markAllAsRead() {
-  notifications.value = notifications.value.map((notification) =>
-    notification.audience === currentRole.value
-      ? { ...notification, unread: false }
-      : notification
-  )
+onMounted(refreshNotifications)
+
+async function markAsRead(id) {
+  updating.value = true
+  loadError.value = ''
+
+  try {
+    await markNotificationAsRead(id)
+    notifications.value = notifications.value.map((notification) =>
+      notification.id === id ? { ...notification, unread: false } : notification
+    )
+  } catch (error) {
+    loadError.value = 'Failed to mark notification as read.'
+  } finally {
+    updating.value = false
+  }
+}
+
+async function markAllAsRead() {
+  updating.value = true
+  loadError.value = ''
+
+  try {
+    await markAllNotificationsAsRead()
+    notifications.value = notifications.value.map((notification) => ({
+      ...notification,
+      unread: false,
+    }))
+  } catch (error) {
+    loadError.value = 'Failed to mark notifications as read.'
+  } finally {
+    updating.value = false
+  }
 }
 </script>
 

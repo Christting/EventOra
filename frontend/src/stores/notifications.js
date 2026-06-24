@@ -1,67 +1,89 @@
-const notificationStorageKey = 'eventora_notifications'
+import {
+  getNotificationsApi,
+  markAllNotificationsAsReadApi,
+  markNotificationAsReadApi,
+} from '@/api/notifications'
 
-function readSavedNotifications() {
+const badgeByType = {
+  event_approved: 'badge-green',
+  event_rejected: 'badge-red',
+  event_cancelled: 'badge-red',
+  registration_success: 'badge-green',
+  payment_success: 'badge-green',
+  waitlist_confirmed: 'badge-blue',
+  event_reminder: 'badge-purple',
+  test: 'badge-blue',
+}
+
+const labelByType = {
+  event_approved: 'Approval',
+  event_rejected: 'Revision',
+  event_cancelled: 'Cancellation',
+  registration_success: 'Registration',
+  payment_success: 'Payment',
+  waitlist_confirmed: 'Waitlist',
+  event_reminder: 'Reminder',
+  test: 'Test',
+}
+
+function currentUserRole() {
   try {
-    const saved = localStorage.getItem(notificationStorageKey)
-    return saved ? JSON.parse(saved) : null
-  } catch (err) {
-    return null
+    const user = JSON.parse(localStorage.getItem('eventora_user') || 'null')
+    return user?.role || 'attendee'
+  } catch (error) {
+    return 'attendee'
   }
 }
 
-function mergeNotifications(mockNotifications, savedNotifications) {
-  if (!Array.isArray(savedNotifications)) return mockNotifications
+function formatNotificationTime(value) {
+  if (!value) return ''
 
-  const mockIds = new Set(mockNotifications.map((notification) => String(notification.id)))
-  const savedById = new Map(
-    savedNotifications.map((notification) => [String(notification.id), notification])
-  )
+  const date = new Date(value.replace(' ', 'T'))
+  if (Number.isNaN(date.getTime())) return value
 
-  const customNotifications = savedNotifications.filter(
-    (notification) => !mockIds.has(String(notification.id))
-  )
+  return date.toLocaleString([], {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
 
-  const mergedMockNotifications = mockNotifications.map((notification) => ({
-    ...notification,
-    ...(savedById.get(String(notification.id)) || {}),
-  }))
-
-  return [...customNotifications, ...mergedMockNotifications]
+function mapNotification(notification) {
+  return {
+    id: notification.id,
+    audience: currentUserRole(),
+    type: labelByType[notification.type] || notification.type,
+    rawType: notification.type,
+    title: notification.title,
+    message: notification.message,
+    relatedEventId: notification.related_event_id,
+    time: formatNotificationTime(notification.created_at),
+    badgeClass: badgeByType[notification.type] || 'badge-blue',
+    unread: Number(notification.is_read) === 0,
+  }
 }
 
 export async function loadNotifications() {
-  const savedNotifications = readSavedNotifications()
-
-  try {
-    const response = await fetch('/mock/notifications.json')
-
-    if (!response.ok) {
-      return Array.isArray(savedNotifications) ? savedNotifications : []
-    }
-
-    const mockNotifications = await response.json()
-    return mergeNotifications(mockNotifications, savedNotifications)
-  } catch (err) {
-    return Array.isArray(savedNotifications) ? savedNotifications : []
-  }
+  const response = await getNotificationsApi()
+  return response.data.data.map(mapNotification)
 }
 
-export function saveNotifications(notifications) {
-  localStorage.setItem(notificationStorageKey, JSON.stringify(notifications))
+export async function markNotificationAsRead(id) {
+  await markNotificationAsReadApi(id)
 }
 
-export function addNotification(notification) {
-  const savedNotifications = readSavedNotifications()
-  const notifications = Array.isArray(savedNotifications) ? savedNotifications : []
+export async function markAllNotificationsAsRead() {
+  await markAllNotificationsAsReadApi()
+}
 
-  const newNotification = {
-    id: `notification-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    time: 'Just now',
-    unread: true,
-    badgeClass: 'badge-blue',
-    ...notification,
-  }
+export function saveNotifications() {
+  // Notifications now come from the backend. This function remains so older
+  // views importing it do not need localStorage-specific branching.
+}
 
-  saveNotifications([newNotification, ...notifications])
-  return newNotification
+export function addNotification() {
+  // Backend notification creation should use NotificationService in Slim.
+  return null
 }
