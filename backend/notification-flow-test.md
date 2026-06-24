@@ -61,6 +61,27 @@ password123
 
 If they do not exist, create them through the register/login flow or insert local seed data.
 
+For notification-specific demos, you can run:
+
+```powershell
+Get-Content -Raw backend\database\seed-notification-demo-data.sql | & "C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysql.exe" -u root
+```
+
+This creates or resets these login-capable demo accounts. All use password `password123`:
+
+```text
+Faculty Admin:
+notify.admin@example.com
+
+Organiser:
+notify.organiser@example.com
+
+Attendee:
+notify.attendee@example.com
+```
+
+It also creates one pending approval event and one published event with a confirmed attendee registration.
+
 ## Demo Flows
 
 ### 1. Organiser submits event, admin receives notification

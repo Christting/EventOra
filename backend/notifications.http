@@ -23,6 +23,33 @@ Content-Type: application/json
   "password": "password123"
 }
 
+### Login as notification demo organiser
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "notify.organiser@example.com",
+  "password": "password123"
+}
+
+### Login as notification demo faculty admin
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "notify.admin@example.com",
+  "password": "password123"
+}
+
+### Login as notification demo attendee
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "notify.attendee@example.com",
+  "password": "password123"
+}
+
 ### Paste tokens from login responses here
 @organiserToken = PASTE_ORGANISER_TOKEN_HERE
 @adminToken = PASTE_ADMIN_TOKEN_HERE
