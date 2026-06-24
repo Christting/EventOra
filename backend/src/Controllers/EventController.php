@@ -108,6 +108,8 @@ class EventController
             ]);
 
             $eventId = (int) $db->lastInsertId();
+
+            $this->notifyFacultyAdminsOfPendingEvent($title, $eventId);
         } catch (PDOException $e) {
             return $this->errorResponse($response, 'DB_ERROR', 'Could not create event', [], 500);
         }
@@ -195,12 +197,24 @@ class EventController
             'status' => 'pending_approval',
         ]);
 
+        $updatedTitle = trim($data['title'] ?? $event['title']);
+        $this->notifyFacultyAdminsOfPendingEvent($updatedTitle, $eventId);
+
         return $this->successResponse($response, ['id' => $eventId, 'status' => 'pending_approval'], 'Event updated and submitted for approval', 200);
     }
 
     public function submitForApproval(Request $request, Response $response, array $args): Response
     {
-        return $this->changeStatus($request, $response, (int) $args['id'], ['draft', 'rejected'], 'pending_approval', 'Event submitted for approval');
+        return $this->changeStatus(
+            $request,
+            $response,
+            (int) $args['id'],
+            ['draft', 'rejected'],
+            'pending_approval',
+            'Event submitted for approval',
+            false,
+            true
+        );
     }
 
     public function deleteDraft(Request $request, Response $response, array $args): Response
@@ -245,7 +259,8 @@ class EventController
         array $fromStatuses,
         string $toStatus,
         string $message,
-        bool $notifyOrganiser = false
+        bool $notifyOrganiser = false,
+        bool $notifyFacultyAdmins = false
     ): Response
     {
         $event = $this->findOwnedEvent($request, $eventId);
@@ -270,7 +285,22 @@ class EventController
             );
         }
 
+        if ($notifyFacultyAdmins) {
+            $this->notifyFacultyAdminsOfPendingEvent($event['title'], $eventId);
+        }
+
         return $this->successResponse($response, ['id' => $eventId, 'status' => $toStatus], $message, 200);
+    }
+
+    private function notifyFacultyAdminsOfPendingEvent(string $eventTitle, int $eventId): void
+    {
+        NotificationService::createForRole(
+            'faculty_admin',
+            'event_pending_approval',
+            'New event pending approval',
+            "Event '{$eventTitle}' has been submitted and is waiting for Faculty Admin review.",
+            $eventId
+        );
     }
 
     private function organiserBelongsToSociety(\PDO $db, int $organiserId, int $societyId): bool

@@ -30,4 +30,25 @@ class NotificationService
 
         return (int) $db->lastInsertId();
     }
+
+    public static function createForRole(
+        string $role,
+        string $type,
+        string $title,
+        string $message,
+        ?int $relatedEventId = null
+    ): int {
+        $db = Database::getConnection();
+        $stmt = $db->prepare('SELECT id FROM users WHERE role = :role');
+        $stmt->execute(['role' => $role]);
+        $userIds = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+
+        $createdCount = 0;
+        foreach ($userIds as $userId) {
+            self::create((int) $userId, $type, $title, $message, $relatedEventId);
+            $createdCount++;
+        }
+
+        return $createdCount;
+    }
 }
