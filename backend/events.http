@@ -1,0 +1,98 @@
+### EventOra - Event Management API Test Requests
+@baseUrl = http://localhost:8000
+
+###############################################
+# STEP 0 - Login as notification demo organiser
+# Password: password123
+###############################################
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "notify.organiser@example.com",
+  "password": "password123"
+}
+
+### Paste organiser token from login response here
+@organiserToken = PASTE_ORGANISER_TOKEN_HERE
+
+### If you used backend/database/seed-notification-demo-data.sql,
+### the demo organiser society id is usually 2. If unsure, call this:
+GET {{baseUrl}}/api/societies/mine
+Authorization: Bearer {{organiserToken}}
+
+@societyId = 2
+@draftEventId = PASTE_DRAFT_EVENT_ID_HERE
+
+###############################################
+# TEST 1 - Save event as draft
+# Expected:
+# - 201 Created
+# - status = draft
+# - faculty admins are NOT notified yet
+###############################################
+POST {{baseUrl}}/api/events/draft
+Authorization: Bearer {{organiserToken}}
+Content-Type: application/json
+
+{
+  "society_id": {{societyId}},
+  "title": "Draft API Test Event",
+  "description": "Saved as draft before submitting for approval.",
+  "venue": "N28",
+  "category": "academic",
+  "start_datetime": "2026-08-01 10:00:00",
+  "end_datetime": "2026-08-01 12:00:00",
+  "reg_deadline": "2026-07-31 23:00:00",
+  "capacity": 20,
+  "fee_type": "free",
+  "fee_amount": 99
+}
+
+###############################################
+# TEST 2 - Save changes while keeping draft status
+# Expected:
+# - 200 OK
+# - status = draft
+###############################################
+PUT {{baseUrl}}/api/events/{{draftEventId}}/draft
+Authorization: Bearer {{organiserToken}}
+Content-Type: application/json
+
+{
+  "title": "Draft API Test Event Updated",
+  "description": "Still saved as draft. Not sent to admin yet."
+}
+
+###############################################
+# TEST 3 - Submit draft for approval
+# Expected:
+# - 200 OK
+# - status = pending_approval
+# - faculty admins receive event_pending_approval notification
+###############################################
+POST {{baseUrl}}/api/events/{{draftEventId}}/submit
+Authorization: Bearer {{organiserToken}}
+
+###############################################
+# TEST 4 - Event validation should reject bad dates/paid fee
+# Expected:
+# - 422 Validation failed
+###############################################
+POST {{baseUrl}}/api/events
+Authorization: Bearer {{organiserToken}}
+Content-Type: application/json
+
+{
+  "society_id": {{societyId}},
+  "title": "Invalid Validation Test",
+  "description": "This should fail validation.",
+  "venue": "N28",
+  "category": "academic",
+  "start_datetime": "2026-08-01 12:00:00",
+  "end_datetime": "2026-08-01 10:00:00",
+  "reg_deadline": "2026-08-01 13:00:00",
+  "capacity": 20,
+  "fee_type": "paid",
+  "fee_amount": 0
+}

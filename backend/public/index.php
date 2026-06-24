@@ -131,9 +131,11 @@ $app->get('/api/societies/mine', [new SocietyController(), 'listMine'])
 $app->group('/api/events', function ($group) {
     $controller = new EventController();
     $group->post('', [$controller, 'create']);
+    $group->post('/draft', [$controller, 'createDraft']);
     $group->get('/mine', [$controller, 'listMine']);
     $group->get('/{id}', [$controller, 'show']);
     $group->put('/{id}', [$controller, 'update']);
+    $group->put('/{id}/draft', [$controller, 'saveDraft']);
     $group->post('/{id}/submit', [$controller, 'submitForApproval']);
     $group->delete('/{id}', [$controller, 'deleteDraft']);
     $group->patch('/{id}/cancel-submission', [$controller, 'cancelSubmission']);

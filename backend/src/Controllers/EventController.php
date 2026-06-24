@@ -23,6 +23,36 @@ class EventController
     // created_by is taken from the JWT, never from the request body.
     public function create(Request $request, Response $response): Response
     {
+        return $this->createEventFromRequest(
+            $request,
+            $response,
+            'pending_approval',
+            true,
+            'Event created and submitted for approval'
+        );
+    }
+
+    // POST /api/events/draft
+    // Saves an event as draft without notifying faculty admins yet.
+    public function createDraft(Request $request, Response $response): Response
+    {
+        return $this->createEventFromRequest(
+            $request,
+            $response,
+            'draft',
+            false,
+            'Draft event saved'
+        );
+    }
+
+    private function createEventFromRequest(
+        Request $request,
+        Response $response,
+        string $status,
+        bool $notifyFacultyAdmins,
+        string $successMessage
+    ): Response
+    {
         $authUser = $request->getAttribute('user');
         $createdBy = (int) $authUser['sub'];
 
@@ -111,12 +141,14 @@ class EventController
                 'contact_person' => $contactPerson,
                 'contact_email' => $contactEmail,
                 'special_instructions' => $specialInstructions,
-                'status' => 'pending_approval',
+                'status' => $status,
             ]);
 
             $eventId = (int) $db->lastInsertId();
 
-            $this->notifyFacultyAdminsOfPendingEvent($title, $eventId);
+            if ($notifyFacultyAdmins) {
+                $this->notifyFacultyAdminsOfPendingEvent($title, $eventId);
+            }
         } catch (PDOException $e) {
             return $this->errorResponse($response, 'DB_ERROR', 'Could not create event', [], 500);
         }
@@ -124,8 +156,8 @@ class EventController
         return $this->successResponse($response, [
             'id' => $eventId,
             'title' => $title,
-            'status' => 'pending_approval',
-        ], 'Event created and submitted for approval', 201);
+            'status' => $status,
+        ], $successMessage, 201);
     }
 
     // GET /api/events/mine
@@ -165,7 +197,37 @@ class EventController
 
     public function update(Request $request, Response $response, array $args): Response
     {
-        $eventId = (int) $args['id'];
+        return $this->saveEventDetails(
+            $request,
+            $response,
+            (int) $args['id'],
+            'pending_approval',
+            true,
+            'Event updated and submitted for approval'
+        );
+    }
+
+    public function saveDraft(Request $request, Response $response, array $args): Response
+    {
+        return $this->saveEventDetails(
+            $request,
+            $response,
+            (int) $args['id'],
+            'draft',
+            false,
+            'Draft saved'
+        );
+    }
+
+    private function saveEventDetails(
+        Request $request,
+        Response $response,
+        int $eventId,
+        string $targetStatus,
+        bool $notifyFacultyAdmins,
+        string $successMessage
+    ): Response
+    {
         $event = $this->findOwnedEvent($request, $eventId);
         if ($event === null) {
             return $this->errorResponse($response, 'EVENT_NOT_FOUND', 'Event not found', [], 404);
@@ -176,7 +238,7 @@ class EventController
 
         $data = $request->getParsedBody();
         $title = trim($data['title'] ?? $event['title']);
-        $description = trim($data['description'] ?? $event['description']);
+        $description = trim($data['description'] ?? ($event['description'] ?? ''));
         $venue = trim($data['venue'] ?? $event['venue']);
         $category = $data['category'] ?? $event['category'];
         $startDatetime = $data['start_datetime'] ?? $event['start_datetime'];
@@ -186,9 +248,9 @@ class EventController
         $feeType = $data['fee_type'] ?? $event['fee_type'];
         $feeAmount = isset($data['fee_amount']) ? (float) $data['fee_amount'] : (float) $event['fee_amount'];
         $waitlistEnabled = isset($data['waitlist_enabled']) ? (int) (bool) $data['waitlist_enabled'] : (int) $event['waitlist_enabled'];
-        $contactPerson = trim($data['contact_person'] ?? $event['contact_person']) ?: null;
-        $contactEmail = trim($data['contact_email'] ?? $event['contact_email']) ?: null;
-        $specialInstructions = trim($data['special_instructions'] ?? $event['special_instructions']) ?: null;
+        $contactPerson = trim($data['contact_person'] ?? ($event['contact_person'] ?? '')) ?: null;
+        $contactEmail = trim($data['contact_email'] ?? ($event['contact_email'] ?? '')) ?: null;
+        $specialInstructions = trim($data['special_instructions'] ?? ($event['special_instructions'] ?? '')) ?: null;
 
         $errors = [];
         if ($title === '') {
@@ -244,27 +306,43 @@ class EventController
             'contact_person' => $contactPerson,
             'contact_email' => $contactEmail,
             'special_instructions' => $specialInstructions,
-            'status' => 'pending_approval',
+            'status' => $targetStatus,
         ]);
 
-        $updatedTitle = $title;
-        $this->notifyFacultyAdminsOfPendingEvent($updatedTitle, $eventId);
+        if ($notifyFacultyAdmins) {
+            $this->notifyFacultyAdminsOfPendingEvent($title, $eventId);
+        }
 
-        return $this->successResponse($response, ['id' => $eventId, 'status' => 'pending_approval'], 'Event updated and submitted for approval', 200);
+        return $this->successResponse($response, ['id' => $eventId, 'status' => $targetStatus], $successMessage, 200);
     }
 
     public function submitForApproval(Request $request, Response $response, array $args): Response
     {
-        return $this->changeStatus(
-            $request,
-            $response,
-            (int) $args['id'],
-            ['draft', 'rejected'],
-            'pending_approval',
-            'Event submitted for approval',
-            false,
-            true
+        $eventId = (int) $args['id'];
+        $event = $this->findOwnedEvent($request, $eventId);
+        if ($event === null) {
+            return $this->errorResponse($response, 'EVENT_NOT_FOUND', 'Event not found', [], 404);
+        }
+        if (!in_array($event['status'], ['draft', 'rejected'], true)) {
+            return $this->errorResponse($response, 'INVALID_STATE_TRANSITION', "Event with status '{$event['status']}' cannot be submitted for approval", [], 400);
+        }
+
+        $errors = array_merge(
+            $this->validateEventSchedule($event['start_datetime'], $event['end_datetime'], $event['reg_deadline']),
+            $this->validateEventFee($event['fee_type'], (float) $event['fee_amount'])
         );
+
+        if (!empty($errors)) {
+            return $this->errorResponse($response, 'VALIDATION_ERROR', 'Validation failed', $errors, 422);
+        }
+
+        $db = Database::getConnection();
+        $stmt = $db->prepare('UPDATE events SET status = :status WHERE id = :id');
+        $stmt->execute(['status' => 'pending_approval', 'id' => $eventId]);
+
+        $this->notifyFacultyAdminsOfPendingEvent($event['title'], $eventId);
+
+        return $this->successResponse($response, ['id' => $eventId, 'status' => 'pending_approval'], 'Event submitted for approval', 200);
     }
 
     public function deleteDraft(Request $request, Response $response, array $args): Response
