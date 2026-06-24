@@ -51,4 +51,35 @@ class NotificationService
 
         return $createdCount;
     }
+
+    public static function createForEventRegistrants(
+        int $eventId,
+        string $type,
+        string $title,
+        string $message,
+        ?int $excludeUserId = null
+    ): int {
+        $db = Database::getConnection();
+        $stmt = $db->prepare(
+            "SELECT DISTINCT user_id
+             FROM registrations
+             WHERE event_id = :event_id
+               AND status IN ('pending_payment', 'confirmed', 'waitlisted')"
+        );
+        $stmt->execute(['event_id' => $eventId]);
+        $userIds = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+
+        $createdCount = 0;
+        foreach ($userIds as $userId) {
+            $recipientId = (int) $userId;
+            if ($excludeUserId !== null && $recipientId === $excludeUserId) {
+                continue;
+            }
+
+            self::create($recipientId, $type, $title, $message, $eventId);
+            $createdCount++;
+        }
+
+        return $createdCount;
+    }
 }

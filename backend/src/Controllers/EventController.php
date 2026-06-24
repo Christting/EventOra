@@ -283,6 +283,14 @@ class EventController
                 "Your event '{$event['title']}' has been cancelled.",
                 $eventId
             );
+
+            NotificationService::createForEventRegistrants(
+                $eventId,
+                'event_cancelled',
+                'Event cancelled',
+                "The event '{$event['title']}' has been cancelled by the organiser.",
+                (int) $event['created_by']
+            );
         }
 
         if ($notifyFacultyAdmins) {

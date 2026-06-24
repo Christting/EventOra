@@ -123,6 +123,24 @@ POST /api/notifications/{id}/read
 POST /api/notifications/read-all
 ```
 
+### 5. Organiser cancels event, attendees receive notification
+
+1. Make sure an event is `published`.
+2. Make sure at least one attendee has a registration for that event with status `confirmed`, `waitlisted`, or `pending_payment`.
+3. Login as the organiser who owns the event.
+4. Cancel the event.
+5. Login as the attendee.
+6. Open `/notifications`.
+7. Expected result: attendee sees `Event cancelled`.
+
+Backend notification type:
+
+```text
+event_cancelled
+```
+
+Cancelled registrations are skipped, so users who already cancelled their own registration will not receive this event cancellation notification.
+
 ## Implemented APIs
 
 ```text

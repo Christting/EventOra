@@ -26,6 +26,7 @@ Content-Type: application/json
 ### Paste tokens from login responses here
 @organiserToken = PASTE_ORGANISER_TOKEN_HERE
 @adminToken = PASTE_ADMIN_TOKEN_HERE
+@attendeeToken = PASTE_ATTENDEE_TOKEN_HERE
 
 ###############################################
 # TEST 1 - Organiser creates event
@@ -100,3 +101,20 @@ Authorization: Bearer {{organiserToken}}
 ###############################################
 POST {{baseUrl}}/api/notifications/read-all
 Authorization: Bearer {{organiserToken}}
+
+###############################################
+# TEST 8 - Organiser cancels published event
+# Expected:
+# - organiser receives event_cancelled notification
+# - attendees with confirmed/waitlisted/pending_payment
+#   registrations receive event_cancelled notification
+###############################################
+PATCH {{baseUrl}}/api/events/{{eventId}}/cancel
+Authorization: Bearer {{organiserToken}}
+
+###############################################
+# TEST 9 - Attendee lists notifications
+# Expected: includes Event cancelled
+###############################################
+GET {{baseUrl}}/api/notifications
+Authorization: Bearer {{attendeeToken}}
