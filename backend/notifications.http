@@ -2,7 +2,7 @@
 @baseUrl = http://localhost:8000
 
 ###############################################
-# STEP 0 - Login first, then paste token below
+# STEP 0 - Login first, then paste tokens below
 ###############################################
 
 ### Login as organiser
@@ -14,29 +14,89 @@ Content-Type: application/json
   "password": "password123"
 }
 
-### Paste token from login response here
-@token = PASTE_TOKEN_HERE
+### Login as faculty admin
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "password123"
+}
+
+### Paste tokens from login responses here
+@organiserToken = PASTE_ORGANISER_TOKEN_HERE
+@adminToken = PASTE_ADMIN_TOKEN_HERE
 
 ###############################################
-# TEST 1 - List my notifications
+# TEST 1 - Organiser creates event
+# Expected:
+# - 201 Created
+# - event status = pending_approval
+# - faculty_admin receives event_pending_approval notification
+###############################################
+POST {{baseUrl}}/api/events
+Authorization: Bearer {{organiserToken}}
+Content-Type: application/json
+
+{
+  "society_id": 1,
+  "title": "Notification Flow Test Event",
+  "description": "Testing notification flow from organiser submission to faculty admin review.",
+  "venue": "N28",
+  "category": "academic",
+  "start_datetime": "2026-08-01 10:00:00",
+  "end_datetime": "2026-08-01 12:00:00",
+  "reg_deadline": "2026-07-30 23:59:59",
+  "capacity": 40,
+  "fee_type": "free",
+  "fee_amount": 0
+}
+
+### Paste created event id here
+@eventId = PASTE_EVENT_ID_HERE
+
+###############################################
+# TEST 2 - Admin lists notifications
+# Expected: includes New event pending approval
 ###############################################
 GET {{baseUrl}}/api/notifications
-Authorization: Bearer {{token}}
+Authorization: Bearer {{adminToken}}
 
 ###############################################
-# TEST 2 - Get unread count
+# TEST 3 - Admin rejects event
+# Expected:
+# - event status = rejected
+# - organiser receives event_rejected notification
+###############################################
+POST {{baseUrl}}/api/admin/events/{{eventId}}/reject
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "reason": "Testing notification flow."
+}
+
+###############################################
+# TEST 4 - Organiser lists notifications
+# Expected: includes Event rejected with reason
+###############################################
+GET {{baseUrl}}/api/notifications
+Authorization: Bearer {{organiserToken}}
+
+###############################################
+# TEST 5 - Get organiser unread count
 ###############################################
 GET {{baseUrl}}/api/notifications/unread-count
-Authorization: Bearer {{token}}
+Authorization: Bearer {{organiserToken}}
 
 ###############################################
-# TEST 3 - Mark one notification as read
+# TEST 6 - Mark one notification as read
 ###############################################
 POST {{baseUrl}}/api/notifications/1/read
-Authorization: Bearer {{token}}
+Authorization: Bearer {{organiserToken}}
 
 ###############################################
-# TEST 4 - Mark all notifications as read
+# TEST 7 - Mark all organiser notifications as read
 ###############################################
 POST {{baseUrl}}/api/notifications/read-all
-Authorization: Bearer {{token}}
+Authorization: Bearer {{organiserToken}}
