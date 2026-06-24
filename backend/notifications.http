@@ -162,3 +162,28 @@ Content-Type: application/json
 {
   "hours_before": 24
 }
+###############################################
+# TEST 11 - Event validation should reject bad dates/paid fee
+# Expected:
+# - 422 Validation failed
+# - end_datetime must be after start_datetime
+# - reg_deadline must be before start_datetime
+# - paid fee_amount must be greater than 0
+###############################################
+POST {{baseUrl}}/api/events
+Authorization: Bearer {{organiserToken}}
+Content-Type: application/json
+
+{
+  "society_id": 2,
+  "title": "Invalid Validation Test",
+  "description": "This should fail validation.",
+  "venue": "N28",
+  "category": "academic",
+  "start_datetime": "2026-08-01 12:00:00",
+  "end_datetime": "2026-08-01 10:00:00",
+  "reg_deadline": "2026-08-01 13:00:00",
+  "capacity": 20,
+  "fee_type": "paid",
+  "fee_amount": 0
+}

@@ -68,6 +68,13 @@ class EventController
             $errors['fee_type'] = 'fee_type must be either free or paid';
         }
 
+        $errors = array_merge($errors, $this->validateEventSchedule($startDatetime, $endDatetime, $regDeadline));
+        $errors = array_merge($errors, $this->validateEventFee($feeType, $feeAmount));
+
+        if ($feeType === 'free') {
+            $feeAmount = 0.00;
+        }
+
         if (!empty($errors)) {
             return $this->errorResponse($response, 'VALIDATION_ERROR', 'Validation failed', $errors, 422);
         }
@@ -168,6 +175,49 @@ class EventController
         }
 
         $data = $request->getParsedBody();
+        $title = trim($data['title'] ?? $event['title']);
+        $description = trim($data['description'] ?? $event['description']);
+        $venue = trim($data['venue'] ?? $event['venue']);
+        $category = $data['category'] ?? $event['category'];
+        $startDatetime = $data['start_datetime'] ?? $event['start_datetime'];
+        $endDatetime = $data['end_datetime'] ?? $event['end_datetime'];
+        $regDeadline = $data['reg_deadline'] ?? $event['reg_deadline'];
+        $capacity = isset($data['capacity']) ? (int) $data['capacity'] : (int) $event['capacity'];
+        $feeType = $data['fee_type'] ?? $event['fee_type'];
+        $feeAmount = isset($data['fee_amount']) ? (float) $data['fee_amount'] : (float) $event['fee_amount'];
+        $waitlistEnabled = isset($data['waitlist_enabled']) ? (int) (bool) $data['waitlist_enabled'] : (int) $event['waitlist_enabled'];
+        $contactPerson = trim($data['contact_person'] ?? $event['contact_person']) ?: null;
+        $contactEmail = trim($data['contact_email'] ?? $event['contact_email']) ?: null;
+        $specialInstructions = trim($data['special_instructions'] ?? $event['special_instructions']) ?: null;
+
+        $errors = [];
+        if ($title === '') {
+            $errors['title'] = 'Title is required';
+        }
+        if ($venue === '') {
+            $errors['venue'] = 'Venue is required';
+        }
+        if (!in_array($category, $this->allowedCategories, true)) {
+            $errors['category'] = 'Category must be one of: ' . implode(', ', $this->allowedCategories);
+        }
+        if ($capacity < 1) {
+            $errors['capacity'] = 'Capacity must be a positive number';
+        }
+        if (!in_array($feeType, $this->allowedFeeTypes, true)) {
+            $errors['fee_type'] = 'fee_type must be either free or paid';
+        }
+
+        $errors = array_merge($errors, $this->validateEventSchedule($startDatetime, $endDatetime, $regDeadline));
+        $errors = array_merge($errors, $this->validateEventFee($feeType, $feeAmount));
+
+        if ($feeType === 'free') {
+            $feeAmount = 0.00;
+        }
+
+        if (!empty($errors)) {
+            return $this->errorResponse($response, 'VALIDATION_ERROR', 'Validation failed', $errors, 422);
+        }
+
         $db = Database::getConnection();
         $stmt = $db->prepare(
             'UPDATE events SET title = :title, description = :description, venue = :venue, category = :category,
@@ -180,24 +230,24 @@ class EventController
         );
         $stmt->execute([
             'id' => $eventId,
-            'title' => trim($data['title'] ?? $event['title']),
-            'description' => trim($data['description'] ?? $event['description']),
-            'venue' => trim($data['venue'] ?? $event['venue']),
-            'category' => $data['category'] ?? $event['category'],
-            'start_datetime' => $data['start_datetime'] ?? $event['start_datetime'],
-            'end_datetime' => $data['end_datetime'] ?? $event['end_datetime'],
-            'reg_deadline' => $data['reg_deadline'] ?? $event['reg_deadline'],
-            'capacity' => isset($data['capacity']) ? (int) $data['capacity'] : (int) $event['capacity'],
-            'fee_type' => $data['fee_type'] ?? $event['fee_type'],
-            'fee_amount' => isset($data['fee_amount']) ? (float) $data['fee_amount'] : (float) $event['fee_amount'],
-            'waitlist_enabled' => isset($data['waitlist_enabled']) ? (int) (bool) $data['waitlist_enabled'] : (int) $event['waitlist_enabled'],
-            'contact_person' => trim($data['contact_person'] ?? $event['contact_person']) ?: null,
-            'contact_email' => trim($data['contact_email'] ?? $event['contact_email']) ?: null,
-            'special_instructions' => trim($data['special_instructions'] ?? $event['special_instructions']) ?: null,
+            'title' => $title,
+            'description' => $description,
+            'venue' => $venue,
+            'category' => $category,
+            'start_datetime' => $startDatetime,
+            'end_datetime' => $endDatetime,
+            'reg_deadline' => $regDeadline,
+            'capacity' => $capacity,
+            'fee_type' => $feeType,
+            'fee_amount' => $feeAmount,
+            'waitlist_enabled' => $waitlistEnabled,
+            'contact_person' => $contactPerson,
+            'contact_email' => $contactEmail,
+            'special_instructions' => $specialInstructions,
             'status' => 'pending_approval',
         ]);
 
-        $updatedTitle = trim($data['title'] ?? $event['title']);
+        $updatedTitle = $title;
         $this->notifyFacultyAdminsOfPendingEvent($updatedTitle, $eventId);
 
         return $this->successResponse($response, ['id' => $eventId, 'status' => 'pending_approval'], 'Event updated and submitted for approval', 200);
@@ -298,6 +348,50 @@ class EventController
         }
 
         return $this->successResponse($response, ['id' => $eventId, 'status' => $toStatus], $message, 200);
+    }
+
+    private function validateEventSchedule(string $startDatetime, string $endDatetime, string $regDeadline): array
+    {
+        if ($startDatetime === '' || $endDatetime === '' || $regDeadline === '') {
+            return [];
+        }
+
+        $startTimestamp = strtotime($startDatetime);
+        $endTimestamp = strtotime($endDatetime);
+        $deadlineTimestamp = strtotime($regDeadline);
+
+        if ($startTimestamp === false || $endTimestamp === false || $deadlineTimestamp === false) {
+            return [
+                'datetime' => 'start_datetime, end_datetime, and reg_deadline must be valid datetime values',
+            ];
+        }
+
+        $errors = [];
+        if ($startTimestamp >= $endTimestamp) {
+            $errors['end_datetime'] = 'end_datetime must be after start_datetime';
+        }
+        if ($deadlineTimestamp >= $startTimestamp) {
+            $errors['reg_deadline'] = 'reg_deadline must be before start_datetime';
+        }
+
+        return $errors;
+    }
+
+    private function validateEventFee(string $feeType, float $feeAmount): array
+    {
+        if (!in_array($feeType, $this->allowedFeeTypes, true)) {
+            return [];
+        }
+
+        if ($feeAmount < 0) {
+            return ['fee_amount' => 'fee_amount cannot be negative'];
+        }
+
+        if ($feeType === 'paid' && $feeAmount <= 0) {
+            return ['fee_amount' => 'Paid events must have a fee_amount greater than 0'];
+        }
+
+        return [];
     }
 
     private function notifyFacultyAdminsOfPendingEvent(string $eventTitle, int $eventId): void
