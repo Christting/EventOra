@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Helpers\Database;
+use App\Services\NotificationService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use PDOException;
@@ -226,10 +227,26 @@ class EventController
 
     public function cancel(Request $request, Response $response, array $args): Response
     {
-        return $this->changeStatus($request, $response, (int) $args['id'], ['published'], 'cancelled', 'Event cancelled');
+        return $this->changeStatus(
+            $request,
+            $response,
+            (int) $args['id'],
+            ['published'],
+            'cancelled',
+            'Event cancelled',
+            true
+        );
     }
 
-    private function changeStatus(Request $request, Response $response, int $eventId, array $fromStatuses, string $toStatus, string $message): Response
+    private function changeStatus(
+        Request $request,
+        Response $response,
+        int $eventId,
+        array $fromStatuses,
+        string $toStatus,
+        string $message,
+        bool $notifyOrganiser = false
+    ): Response
     {
         $event = $this->findOwnedEvent($request, $eventId);
         if ($event === null) {
@@ -242,6 +259,16 @@ class EventController
         $db = Database::getConnection();
         $stmt = $db->prepare('UPDATE events SET status = :status WHERE id = :id');
         $stmt->execute(['status' => $toStatus, 'id' => $eventId]);
+
+        if ($notifyOrganiser) {
+            NotificationService::create(
+                (int) $event['created_by'],
+                'event_cancelled',
+                'Event cancelled',
+                "Your event '{$event['title']}' has been cancelled.",
+                $eventId
+            );
+        }
 
         return $this->successResponse($response, ['id' => $eventId, 'status' => $toStatus], $message, 200);
     }

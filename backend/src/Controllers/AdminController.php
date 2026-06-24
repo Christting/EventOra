@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Helpers\Database;
+use App\Services\NotificationService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use PDO;
@@ -155,6 +156,14 @@ class AdminController
                 'decision' => 'approved',
             ]);
 
+            NotificationService::create(
+                (int) $event['created_by'],
+                'event_approved',
+                'Event approved',
+                "Your event '{$event['title']}' has been approved and published.",
+                $eventId
+            );
+
             $db->commit();
         } catch (PDOException $e) {
             $db->rollBack();
@@ -241,6 +250,14 @@ class AdminController
                 'reason' => $reason,
             ]);
 
+            NotificationService::create(
+                (int) $event['created_by'],
+                'event_rejected',
+                'Event rejected',
+                "Your event '{$event['title']}' was rejected. Reason: {$reason}",
+                $eventId
+            );
+
             $db->commit();
         } catch (PDOException $e) {
             $db->rollBack();
@@ -268,7 +285,7 @@ class AdminController
     // than the full event row.
     private function findEventOrNull(PDO $db, int $eventId): ?array
     {
-        $stmt = $db->prepare('SELECT id, status FROM events WHERE id = :id');
+        $stmt = $db->prepare('SELECT id, status, title, created_by FROM events WHERE id = :id');
         $stmt->execute(['id' => $eventId]);
         $event = $stmt->fetch();
 
