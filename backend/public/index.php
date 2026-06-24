@@ -150,6 +150,7 @@ $app->group('/api/notifications', function ($group) {
 
     $group->get('', [$controller, 'index']);
     $group->get('/unread-count', [$controller, 'unreadCount']);
+    $group->post('/send-event-reminders', [$controller, 'sendEventReminders']);
     $group->post('/{id}/read', [$controller, 'markAsRead']);
     $group->post('/read-all', [$controller, 'markAllAsRead']);
 })->add(new JwtMiddleware());

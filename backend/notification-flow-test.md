@@ -121,6 +121,7 @@ APIs used:
 ```text
 POST /api/notifications/{id}/read
 POST /api/notifications/read-all
+POST /api/notifications/send-event-reminders
 ```
 
 ### 5. Organiser cancels event, attendees receive notification
@@ -141,6 +142,24 @@ event_cancelled
 
 Cancelled registrations are skipped, so users who already cancelled their own registration will not receive this event cancellation notification.
 
+### 6. Send upcoming event reminders
+
+1. Make sure an event is `published` and starts within the reminder window.
+2. Make sure at least one attendee has a `confirmed` registration for that event.
+3. Login as an organiser or faculty admin.
+4. Send event reminders with `hours_before`, for example `24`.
+5. Login as the attendee.
+6. Open `/notifications`.
+7. Expected result: attendee sees `Event reminder`.
+
+Backend notification type:
+
+```text
+event_reminder
+```
+
+The reminder sender skips duplicate reminders for the same user and event, so running it twice should not create the same reminder twice.
+
 ## Implemented APIs
 
 ```text
@@ -148,6 +167,7 @@ GET  /api/notifications
 GET  /api/notifications/unread-count
 POST /api/notifications/{id}/read
 POST /api/notifications/read-all
+POST /api/notifications/send-event-reminders
 ```
 
 ## Important Note

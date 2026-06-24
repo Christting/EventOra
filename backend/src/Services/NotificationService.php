@@ -82,4 +82,41 @@ class NotificationService
 
         return $createdCount;
     }
+
+    public static function createUpcomingEventReminders(int $hoursBefore = 24): int
+    {
+        $hoursBefore = max(1, min($hoursBefore, 168));
+        $db = Database::getConnection();
+        $stmt = $db->prepare(
+            "SELECT e.id AS event_id, e.title, e.start_datetime, r.user_id
+             FROM events e
+             JOIN registrations r ON r.event_id = e.id
+             LEFT JOIN notifications n
+                ON n.user_id = r.user_id
+               AND n.related_event_id = e.id
+               AND n.type = 'event_reminder'
+             WHERE e.status = 'published'
+               AND r.status = 'confirmed'
+               AND e.start_datetime > NOW()
+               AND e.start_datetime <= DATE_ADD(NOW(), INTERVAL {$hoursBefore} HOUR)
+               AND n.id IS NULL
+             ORDER BY e.start_datetime ASC, e.id ASC"
+        );
+        $stmt->execute();
+        $rows = $stmt->fetchAll();
+
+        $createdCount = 0;
+        foreach ($rows as $row) {
+            self::create(
+                (int) $row['user_id'],
+                'event_reminder',
+                'Event reminder',
+                "Reminder: '{$row['title']}' is starting at {$row['start_datetime']}.",
+                (int) $row['event_id']
+            );
+            $createdCount++;
+        }
+
+        return $createdCount;
+    }
 }

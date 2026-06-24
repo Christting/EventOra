@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Helpers\Database;
+use App\Services\NotificationService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -98,6 +99,29 @@ class NotificationController
         ], 'All notifications marked as read', 200);
     }
 
+    public function sendEventReminders(Request $request, Response $response): Response
+    {
+        $user = $request->getAttribute('user');
+        if (!in_array($user['role'], ['faculty_admin', 'organiser'], true)) {
+            return $this->errorResponse($response, 'FORBIDDEN', 'Only organisers or faculty admins can send event reminders', [], 403);
+        }
+
+        $data = $request->getParsedBody() ?? [];
+        $hoursBefore = isset($data['hours_before']) ? (int) $data['hours_before'] : 24;
+
+        if ($hoursBefore < 1 || $hoursBefore > 168) {
+            return $this->errorResponse($response, 'VALIDATION_ERROR', 'hours_before must be between 1 and 168', [
+                'hours_before' => 'Use a value from 1 to 168 hours',
+            ], 422);
+        }
+
+        $createdCount = NotificationService::createUpcomingEventReminders($hoursBefore);
+
+        return $this->successResponse($response, [
+            'created_count' => $createdCount,
+            'hours_before' => $hoursBefore,
+        ], 'Event reminders sent', 200);
+    }
     private function successResponse(Response $response, mixed $data, ?string $message, int $status): Response
     {
         $payload = ['success' => true, 'data' => $data];

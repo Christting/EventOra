@@ -118,3 +118,20 @@ Authorization: Bearer {{organiserToken}}
 ###############################################
 GET {{baseUrl}}/api/notifications
 Authorization: Bearer {{attendeeToken}}
+
+###############################################
+# TEST 10 - Send upcoming event reminders
+# Body hours_before means: remind confirmed attendees
+# for published events starting within this many hours.
+# Expected:
+# - organiser/faculty_admin can trigger it
+# - attendee receives event_reminder notification
+# - running this twice does not duplicate reminders
+###############################################
+POST {{baseUrl}}/api/notifications/send-event-reminders
+Authorization: Bearer {{organiserToken}}
+Content-Type: application/json
+
+{
+  "hours_before": 24
+}
