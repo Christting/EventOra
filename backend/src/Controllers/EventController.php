@@ -196,6 +196,21 @@ class EventController
         return $this->successResponse($response, $this->formatEventForFrontend($event), null, 200);
     }
 
+    public function preview(Request $request, Response $response, array $args): Response
+    {
+        $event = $this->findOwnedEvent($request, (int) $args['id']);
+        if ($event === null) {
+            return $this->errorResponse($response, 'EVENT_NOT_FOUND', 'Event not found', [], 404);
+        }
+
+        $preview = $this->formatEventForFrontend($event);
+        $preview['previewMode'] = true;
+        $preview['canSubmitForApproval'] = in_array($event['status'], ['draft', 'rejected'], true);
+        $preview['canEdit'] = in_array($event['status'], $this->editableStatuses, true);
+
+        return $this->successResponse($response, $preview, null, 200);
+    }
+
     public function update(Request $request, Response $response, array $args): Response
     {
         return $this->saveEventDetails(

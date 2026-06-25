@@ -76,6 +76,16 @@ POST {{baseUrl}}/api/events/{{draftEventId}}/submit
 Authorization: Bearer {{organiserToken}}
 
 ###############################################
+# TEST 3A - Preview event before/after submit
+# Expected:
+# - 200 OK
+# - previewMode = true
+# - canSubmitForApproval depends on event status
+###############################################
+GET {{baseUrl}}/api/events/{{draftEventId}}/preview
+Authorization: Bearer {{organiserToken}}
+
+###############################################
 # TEST 4 - Event validation should reject bad dates/paid fee
 # Expected:
 # - 422 Validation failed
