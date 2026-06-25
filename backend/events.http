@@ -123,3 +123,12 @@ Content-Type: application/json
 {
   "reason": "Venue is unavailable due to emergency maintenance."
 }
+###############################################
+# TEST 6 - Mark published event as completed
+# Expected:
+# - 200 OK
+# - status = completed
+# - only works from published status
+###############################################
+PATCH {{baseUrl}}/api/events/{{publishedEventId}}/complete
+Authorization: Bearer {{organiserToken}}

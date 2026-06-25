@@ -407,6 +407,18 @@ class EventController
         );
     }
 
+    public function complete(Request $request, Response $response, array $args): Response
+    {
+        return $this->changeStatus(
+            $request,
+            $response,
+            (int) $args['id'],
+            ['published'],
+            'completed',
+            'Event marked as completed'
+        );
+    }
+
     private function changeStatus(
         Request $request,
         Response $response,

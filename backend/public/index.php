@@ -141,6 +141,7 @@ $app->group('/api/events', function ($group) {
     $group->delete('/{id}', [$controller, 'deleteDraft']);
     $group->patch('/{id}/cancel-submission', [$controller, 'cancelSubmission']);
     $group->patch('/{id}/cancel', [$controller, 'cancel']);
+    $group->patch('/{id}/complete', [$controller, 'complete']);
 })
     ->add(new RoleMiddleware(['organiser']))
     ->add(new JwtMiddleware());
