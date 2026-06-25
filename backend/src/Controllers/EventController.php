@@ -173,6 +173,7 @@ class EventController
         $stmt = $db->prepare(
             'SELECT e.id, e.title, e.description, e.venue, e.category, e.start_datetime, e.end_datetime,
                 e.reg_deadline, e.capacity, e.fee_type, e.fee_amount, e.waitlist_enabled, e.status,
+                e.cancellation_reason,
                 e.created_at, e.updated_at, s.name AS society_name,
                 (SELECT COUNT(*) FROM registrations r WHERE r.event_id = e.id AND r.status <> "cancelled") AS registrations
              FROM events e
@@ -369,6 +370,15 @@ class EventController
 
     public function cancel(Request $request, Response $response, array $args): Response
     {
+        $data = $request->getParsedBody() ?? [];
+        $cancellationReason = trim($data['reason'] ?? $data['cancellation_reason'] ?? '');
+
+        if (strlen($cancellationReason) > 500) {
+            return $this->errorResponse($response, 'VALIDATION_ERROR', 'Validation failed', [
+                'reason' => 'Cancellation reason cannot be longer than 500 characters',
+            ], 422);
+        }
+
         return $this->changeStatus(
             $request,
             $response,
@@ -376,7 +386,9 @@ class EventController
             ['published'],
             'cancelled',
             'Event cancelled',
-            true
+            true,
+            false,
+            $cancellationReason !== '' ? $cancellationReason : null
         );
     }
 
@@ -388,7 +400,8 @@ class EventController
         string $toStatus,
         string $message,
         bool $notifyOrganiser = false,
-        bool $notifyFacultyAdmins = false
+        bool $notifyFacultyAdmins = false,
+        ?string $cancellationReason = null
     ): Response
     {
         $event = $this->findOwnedEvent($request, $eventId);
@@ -400,15 +413,26 @@ class EventController
         }
 
         $db = Database::getConnection();
-        $stmt = $db->prepare('UPDATE events SET status = :status WHERE id = :id');
-        $stmt->execute(['status' => $toStatus, 'id' => $eventId]);
+        if ($toStatus === 'cancelled') {
+            $stmt = $db->prepare('UPDATE events SET status = :status, cancellation_reason = :cancellation_reason WHERE id = :id');
+            $stmt->execute([
+                'status' => $toStatus,
+                'cancellation_reason' => $cancellationReason,
+                'id' => $eventId,
+            ]);
+        } else {
+            $stmt = $db->prepare('UPDATE events SET status = :status WHERE id = :id');
+            $stmt->execute(['status' => $toStatus, 'id' => $eventId]);
+        }
 
         if ($notifyOrganiser) {
+            $reasonText = $cancellationReason !== null ? " Reason: {$cancellationReason}" : '';
+
             NotificationService::create(
                 (int) $event['created_by'],
                 'event_cancelled',
                 'Event cancelled',
-                "Your event '{$event['title']}' has been cancelled.",
+                "Your event '{$event['title']}' has been cancelled.{$reasonText}",
                 $eventId
             );
 
@@ -416,7 +440,7 @@ class EventController
                 $eventId,
                 'event_cancelled',
                 'Event cancelled',
-                "The event '{$event['title']}' has been cancelled by the organiser.",
+                "The event '{$event['title']}' has been cancelled by the organiser.{$reasonText}",
                 (int) $event['created_by']
             );
         }
@@ -529,6 +553,8 @@ class EventController
             'feeAmount' => (float) $event['fee_amount'],
             'waitlistEnabled' => (bool) $event['waitlist_enabled'],
             'status' => $event['status'],
+            'cancellationReason' => $event['cancellation_reason'] ?? null,
+            'cancellation_reason' => $event['cancellation_reason'] ?? null,
             'registrations' => (int) ($event['registrations'] ?? 0),
             'createdAt' => $event['created_at'] ?? null,
             'updatedAt' => $event['updated_at'] ?? null,

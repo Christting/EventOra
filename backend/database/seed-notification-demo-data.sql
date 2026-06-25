@@ -111,7 +111,8 @@ SET
     fee_type = 'free',
     fee_amount = 0.00,
     waitlist_enabled = 1,
-    status = 'pending_approval'
+    status = 'pending_approval',
+    cancellation_reason = NULL
 WHERE id = @demo_pending_event_id;
 
 DELETE FROM event_approvals WHERE event_id = @demo_pending_event_id;
@@ -160,7 +161,8 @@ SET
     fee_type = 'free',
     fee_amount = 0.00,
     waitlist_enabled = 1,
-    status = 'published'
+    status = 'published',
+    cancellation_reason = NULL
 WHERE id = @demo_published_event_id;
 
 INSERT INTO registrations (event_id, user_id, status, waitlist_position, cancelled_at)

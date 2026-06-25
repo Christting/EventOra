@@ -150,7 +150,7 @@ POST /api/notifications/send-event-reminders
 1. Make sure an event is `published`.
 2. Make sure at least one attendee has a registration for that event with status `confirmed`, `waitlisted`, or `pending_payment`.
 3. Login as the organiser who owns the event.
-4. Cancel the event.
+4. Cancel the event. Optionally include a cancellation reason.
 5. Login as the attendee.
 6. Open `/notifications`.
 7. Expected result: attendee sees `Event cancelled`.

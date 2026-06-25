@@ -23,6 +23,7 @@ Authorization: Bearer {{organiserToken}}
 
 @societyId = 2
 @draftEventId = PASTE_DRAFT_EVENT_ID_HERE
+@publishedEventId = PASTE_PUBLISHED_EVENT_ID_HERE
 
 ###############################################
 # TEST 1 - Save event as draft
@@ -95,4 +96,20 @@ Content-Type: application/json
   "capacity": 20,
   "fee_type": "paid",
   "fee_amount": 0
+}
+
+###############################################
+# TEST 5 - Cancel published event with reason
+# Expected:
+# - 200 OK
+# - status = cancelled
+# - event stores cancellation_reason
+# - organiser and attendees receive event_cancelled notification with reason
+###############################################
+PATCH {{baseUrl}}/api/events/{{publishedEventId}}/cancel
+Authorization: Bearer {{organiserToken}}
+Content-Type: application/json
+
+{
+  "reason": "Venue is unavailable due to emergency maintenance."
 }

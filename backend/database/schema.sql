@@ -86,6 +86,7 @@ CREATE TABLE events (
     contact_email VARCHAR(150) NULL,
     special_instructions TEXT NULL,
     status ENUM('draft', 'pending_approval', 'published', 'completed', 'rejected', 'cancelled') NOT NULL DEFAULT 'draft',
+    cancellation_reason TEXT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
